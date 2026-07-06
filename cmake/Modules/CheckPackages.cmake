@@ -36,10 +36,7 @@ macro(find_libtorrent version)
     endif()
 endmacro()
 
-find_libtorrent(${minLibtorrent1Version})
-if (LibtorrentRasterbar_FOUND AND (LibtorrentRasterbar_VERSION VERSION_GREATER_EQUAL 2.0))
-    find_libtorrent(${minLibtorrentVersion})
-endif()
+find_libtorrent(${minLibtorrentVersion})
 
 # force variable type so that it always shows up in ccmake/cmake-gui frontends
 set_property(CACHE LibtorrentRasterbar_DIR PROPERTY TYPE PATH)
@@ -53,7 +50,7 @@ endif()
 if (DBUS)
     find_package(Qt6 ${minQt6Version} REQUIRED COMPONENTS DBus)
     set_package_properties(Qt6DBus PROPERTIES
-        DESCRIPTION "Qt6 module for inter-process communication over the D-Bus protocol"
+        DESCRIPTION "Qt6 module for inter-process communication over D-Bus"
         PURPOSE "Required by the DBUS feature"
     )
 endif()
