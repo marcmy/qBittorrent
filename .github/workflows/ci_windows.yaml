@@ -1,6 +1,15 @@
 name: CI - Windows
 
-on: [pull_request, push, workflow_dispatch]
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+    inputs:
+      libtorrent_ref:
+        description: libtorrent branch, tag, or commit to build
+        required: false
+        default: RC_2_1
+        type: string
 
 permissions: {}
 
@@ -10,7 +19,7 @@ concurrency:
 
 jobs:
   ci:
-    name: Build (marcmy/libtorrent RC_2_1, x64)
+    name: Build (marcmy/libtorrent ${{ inputs.libtorrent_ref || 'RC_2_1' }}, x64)
     runs-on: windows-latest
     permissions:
       actions: write
@@ -23,7 +32,7 @@ jobs:
       vcpkg_triplet: "x64-windows-static-md-release"
       qt_arch: "win64_msvc2022_64"
       libtorrent_repository: "marcmy/libtorrent"
-      libtorrent_ref: "RC_2_1"
+      libtorrent_ref: "${{ inputs.libtorrent_ref || 'RC_2_1' }}"
 
     steps:
       - name: Checkout qBittorrent
@@ -121,8 +130,10 @@ jobs:
 
           $libtorrentSha = git rev-parse HEAD
           $libtorrentShortSha = git rev-parse --short=12 HEAD
+          $libtorrentRefSafe = "${{ env.libtorrent_ref }}" -replace '[^A-Za-z0-9._-]', '-'
           "LIBTORRENT_SHA=$libtorrentSha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "LIBTORRENT_SHA_SHORT=$libtorrentShortSha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "LIBTORRENT_REF_SAFE=$libtorrentRefSafe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
           $env:CFLAGS+=" /guard:cf"
           $env:CXXFLAGS+=" /guard:cf"
@@ -223,7 +234,7 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: qBittorrent-Custom_Windows-x64_libtorrent-RC_2_1-${{ env.LIBTORRENT_SHA_SHORT }}
+          name: qBittorrent-Custom_Windows-x64_libtorrent-${{ env.LIBTORRENT_REF_SAFE }}-${{ env.LIBTORRENT_SHA_SHORT }}
           path: upload
 
       - name: Install NSIS
@@ -241,10 +252,10 @@ jobs:
             dist/windows/qbittorrent.nsi
           move `
             "dist/windows/qbittorrent_*_setup.exe" `
-            "qBittorrent-Custom_Windows-x64_libtorrent-RC_2_1-${{ env.LIBTORRENT_SHA_SHORT }}-setup.exe"
+            "qBittorrent-Custom_Windows-x64_libtorrent-${{ env.LIBTORRENT_REF_SAFE }}-${{ env.LIBTORRENT_SHA_SHORT }}-setup.exe"
 
       - name: Upload installer
         uses: actions/upload-artifact@v7
         with:
           archive: false
-          path: qBittorrent-Custom_Windows-x64_libtorrent-RC_2_1-${{ env.LIBTORRENT_SHA_SHORT }}-setup.exe
+          path: qBittorrent-Custom_Windows-x64_libtorrent-${{ env.LIBTORRENT_REF_SAFE }}-${{ env.LIBTORRENT_SHA_SHORT }}-setup.exe
