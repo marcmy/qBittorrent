@@ -12,6 +12,10 @@ This fork is the application half of a coordinated qBittorrent + libtorrent proj
 
 `RC_2_0` is retained in the libtorrent fork only for compatibility research or deliberate backports. Libtorrent `master` is retained for future-development comparison and must not silently replace `RC_2_1` in routine qBittorrent builds.
 
+## Platform scope
+
+Windows x64 is the active build and daily-driver target. Ubuntu and macOS do not run automatically. Future Linux work should target Arch Linux rather than using Ubuntu as this fork's intended distribution baseline.
+
 ## Ownership rule
 
 Implement a change at the lowest layer that actually owns the behavior.
