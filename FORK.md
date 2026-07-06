@@ -16,6 +16,14 @@ This fork is the application half of a coordinated qBittorrent + libtorrent proj
 
 Windows x64 is the active build and daily-driver target. Ubuntu and macOS do not run automatically. Future Linux work should target Arch Linux rather than using Ubuntu as this fork's intended distribution baseline.
 
+## Security scanning policy
+
+CodeQL scans first-party qBittorrent code with the `security-and-quality` query suite. Exact vendored snapshots are excluded in `.github/codeql/codeql-config.yml` so third-party findings do not obscure actionable fork-owned results. Those exclusions must remain narrow and should be removed when the corresponding library is replaced or updated.
+
+Zizmor SARIF uploads omit note-severity style findings. Warning and error findings remain visible and must be fixed or explicitly justified.
+
+The upstream Coverity workflow was removed because this personal fork does not own or use qBittorrent upstream's Coverity credentials.
+
 ## Ownership rule
 
 Implement a change at the lowest layer that actually owns the behavior.
