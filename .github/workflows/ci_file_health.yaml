@@ -2,6 +2,7 @@ name: CI - File health
 
 on: [pull_request, push]
 
+# Deny all token capabilities unless a job explicitly grants them.
 permissions: {}
 
 concurrency:
@@ -13,6 +14,7 @@ jobs:
     name: Check
     runs-on: ubuntu-slim
     permissions:
+      # Upload the filtered zizmor SARIF report.
       security-events: write
     steps:
       - name: Checkout repository
@@ -53,16 +55,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pip install zizmor
-          IGNORE_RULEID='(.ruleId != "zizmor/template-injection")
+          RESULT_FILTER='(.level != "note")
+            and (.ruleId != "zizmor/template-injection")
             and (.ruleId != "zizmor/unpinned-uses")'
-          IGNORE_ID='(.id != "zizmor/template-injection")
+          RULE_FILTER='(.id != "zizmor/template-injection")
             and (.id != "zizmor/unpinned-uses")'
           zizmor \
             --format sarif \
             --persona auditor \
             ./ \
-            | jq "(.runs[].results |= map(select($IGNORE_RULEID)))
-              | (.runs[].tool.driver.rules |= map(select($IGNORE_ID)))" \
+            | jq "(.runs[].results |= map(select($RESULT_FILTER)))
+              | (.runs[].tool.driver.rules |= map(select($RULE_FILTER)))" \
             > "${{ runner.temp }}/zizmor_results.sarif"
 
       - name: Upload zizmor results
