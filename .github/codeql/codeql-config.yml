@@ -1,0 +1,13 @@
+name: qBittorrent fork CodeQL configuration
+
+# These files are vendored third-party code. They are intentionally excluded
+# from first-party CodeQL results so alerts remain actionable. Security fixes
+# should come from updating the corresponding upstream library, not by making
+# untracked local rewrites inside a vendored snapshot.
+paths-ignore:
+  - "src/webui/www/private/scripts/lib/mocha-0.9.6.js"
+  - "src/webui/www/private/scripts/lib/vanillaSelectBox.js"
+  - "src/searchengine/nova3/socks.py"
+
+queries:
+  - uses: security-and-quality
