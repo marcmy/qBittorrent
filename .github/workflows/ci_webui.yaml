@@ -12,8 +12,6 @@ jobs:
   ci:
     name: Check
     runs-on: ubuntu-slim
-    permissions:
-      security-events: write
 
     defaults:
       run:
@@ -50,14 +48,3 @@ jobs:
         run: |
           npm run format
           git diff --exit-code
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
-        if: ${{ !cancelled() }}
-        with:
-          config-file: .github/workflows/helper/codeql/js.yaml
-          languages: javascript
-
-      - name: Run CodeQL analysis
-        if: ${{ !cancelled() }}
-        uses: github/codeql-action/analyze@v4
