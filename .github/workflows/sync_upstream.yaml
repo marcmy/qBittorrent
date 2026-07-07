@@ -48,12 +48,14 @@ jobs:
 
           echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Start Windows build against latest libtorrent
+      - name: Start Windows build against synced libtorrent
         if: >-
           github.event_name == 'workflow_dispatch' ||
           steps.sync.outputs.changed == 'true' ||
           github.event.client_payload.libtorrent_changed == 'true'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          LIBTORRENT_REF: ${{ github.event.client_payload.libtorrent_sha || 'RC_2_1' }}
         with:
           github-token: ${{ github.token }}
           script: |
@@ -63,7 +65,7 @@ jobs:
               workflow_id: 'ci_windows.yaml',
               ref: 'master',
               inputs: {
-                libtorrent_ref: 'RC_2_1'
+                libtorrent_ref: process.env.LIBTORRENT_REF
               }
             });
 
@@ -73,12 +75,12 @@ jobs:
           QBITTORRENT_CHANGED: ${{ steps.sync.outputs.changed }}
           QBITTORRENT_HEAD: ${{ steps.sync.outputs.head_sha }}
           LIBTORRENT_CHANGED: ${{ github.event.client_payload.libtorrent_changed || 'manual' }}
-          LIBTORRENT_HEAD: ${{ github.event.client_payload.libtorrent_sha || 'manual dispatch' }}
+          LIBTORRENT_HEAD: ${{ github.event.client_payload.libtorrent_sha || 'RC_2_1' }}
         run: |
           {
             echo "## Upstream sync chain"
             echo "- qBittorrent changed: $QBITTORRENT_CHANGED"
             echo "- qBittorrent head: $QBITTORRENT_HEAD"
             echo "- libtorrent changed: $LIBTORRENT_CHANGED"
-            echo "- libtorrent head: $LIBTORRENT_HEAD"
+            echo "- libtorrent ref: $LIBTORRENT_HEAD"
           } >> "$GITHUB_STEP_SUMMARY"
