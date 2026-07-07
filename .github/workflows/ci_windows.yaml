@@ -36,12 +36,12 @@ jobs:
 
     steps:
       - name: Checkout qBittorrent
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
       - name: Setup devcmd
-        uses: TheMrMilchmann/setup-msvc-dev@v4
+        uses: TheMrMilchmann/setup-msvc-dev@79dac248aac9d0059f86eae9d8b5bfab4e95e97c # v4.0.0
         with:
           arch: ${{ env.target_arch }}
 
@@ -56,7 +56,7 @@ jobs:
 
       # https://learn.microsoft.com/en-us/vcpkg/users/binarycaching#gha
       - name: Set variables for vcpkg
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', (process.env.ACTIONS_CACHE_URL || ''));
@@ -110,7 +110,7 @@ jobs:
             --with-headers
 
       - name: Install Qt
-        uses: jurplel/install-qt-action@v4
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4
         with:
           version: "6.10.3"
           arch: ${{ env.qt_arch }}
@@ -232,7 +232,7 @@ jobs:
           copy "${{ env.libtorrent_path }}/build/compile_commands.json" upload/cmake/libtorrent
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: qBittorrent-Custom_Windows-x64_libtorrent-${{ env.LIBTORRENT_REF_SAFE }}-${{ env.LIBTORRENT_SHA_SHORT }}
           path: upload
@@ -255,7 +255,7 @@ jobs:
             "qBittorrent-Custom_Windows-x64_libtorrent-${{ env.LIBTORRENT_REF_SAFE }}-${{ env.LIBTORRENT_SHA_SHORT }}-setup.exe"
 
       - name: Upload installer
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           archive: false
           path: qBittorrent-Custom_Windows-x64_libtorrent-${{ env.LIBTORRENT_REF_SAFE }}-${{ env.LIBTORRENT_SHA_SHORT }}-setup.exe
