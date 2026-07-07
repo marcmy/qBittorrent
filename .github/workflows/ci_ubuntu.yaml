@@ -1,4 +1,4 @@
-name: CI - Ubuntu
+name: CI - Ubuntu (disabled)
 
 on: workflow_dispatch
 
