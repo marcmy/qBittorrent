@@ -1,3 +1,17 @@
+set(QBT_GENERATED_BITTORRENT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/bittorrent")
+set(QBT_TORRENTIMPL_INPUT "${CMAKE_CURRENT_SOURCE_DIR}/bittorrent/torrentimpl.cpp")
+set(QBT_TORRENTIMPL_OUTPUT "${QBT_GENERATED_BITTORRENT_DIR}/torrentimpl.cpp")
+set(QBT_DBRESUMEDATA_INPUT "${CMAKE_CURRENT_SOURCE_DIR}/bittorrent/dbresumedatastorage.cpp")
+set(QBT_DBRESUMEDATA_OUTPUT "${QBT_GENERATED_BITTORRENT_DIR}/dbresumedatastorage.cpp")
+set(QBT_CUSTOM_TORRENT_SOURCE_GENERATOR "${qBittorrent_SOURCE_DIR}/cmake/GenerateCustomTorrentSources.cmake")
+
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${QBT_TORRENTIMPL_INPUT}"
+    "${QBT_DBRESUMEDATA_INPUT}"
+    "${QBT_CUSTOM_TORRENT_SOURCE_GENERATOR}"
+)
+include("${QBT_CUSTOM_TORRENT_SOURCE_GENERATOR}")
+
 add_library(qbt_base STATIC
     # headers
     3rdparty/expected.hpp
@@ -140,7 +154,7 @@ add_library(qbt_base STATIC
     bittorrent/bencoderesumedatastorage.cpp
     bittorrent/categoryoptions.cpp
     bittorrent/customstorage.cpp
-    bittorrent/dbresumedatastorage.cpp
+    ${QBT_DBRESUMEDATA_OUTPUT}
     bittorrent/downloadpathoption.cpp
     bittorrent/downloadpriority.cpp
     bittorrent/filesearcher.cpp
@@ -163,7 +177,7 @@ add_library(qbt_base STATIC
     bittorrent/torrentcreationtask.cpp
     bittorrent/torrentcreator.cpp
     bittorrent/torrentdescriptor.cpp
-    bittorrent/torrentimpl.cpp
+    ${QBT_TORRENTIMPL_OUTPUT}
     bittorrent/torrentinfo.cpp
     bittorrent/tracker.cpp
     bittorrent/trackerentry.cpp
@@ -225,6 +239,10 @@ add_library(qbt_base STATIC
     utils/string.cpp
     utils/thread.cpp
     utils/version.cpp
+)
+
+target_include_directories(qbt_base PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/bittorrent"
 )
 
 target_link_libraries(qbt_base
