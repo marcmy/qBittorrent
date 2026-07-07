@@ -296,6 +296,45 @@ namespace
     {
         return ((value < 0) || (value == std::numeric_limits<int>::max())) ? 0 : value;
     }
+
+    QString pathCollisionKey(const Path &path)
+    {
+#ifdef Q_OS_WIN
+        return path.data().toCaseFolded();
+#else
+        return path.data();
+#endif
+    }
+
+    PathList makeCollisionSafeFilePaths(const PathList &filePaths, const QString &suffix)
+    {
+        PathList result;
+        result.reserve(filePaths.size());
+
+        const Path rootFolder = Path::findRootFolder(filePaths);
+        if (!rootFolder.isEmpty())
+        {
+            const Path newRootFolder {rootFolder.filename() + suffix};
+            for (const Path &filePath : filePaths)
+                result.emplaceBack(newRootFolder / rootFolder.relativePathOf(filePath));
+            return result;
+        }
+
+        if (filePaths.size() == 1)
+        {
+            const Path filePath = filePaths.constFirst();
+            const Path fileName {filePath.filename()};
+            const Path renamedFile {fileName.removedExtension().filename() + suffix + fileName.extension()};
+            const Path parentPath = filePath.parentPath();
+            result.emplaceBack(parentPath.isEmpty() ? renamedFile : (parentPath / renamedFile));
+            return result;
+        }
+
+        const Path newRootFolder {u"qBittorrent content"_s + suffix};
+        for (const Path &filePath : filePaths)
+            result.emplaceBack(newRootFolder / filePath);
+        return result;
+    }
 }
 
 // TorrentImpl
@@ -2030,6 +2069,14 @@ void TorrentImpl::start(const TorrentOperatingMode mode)
     if (m_isStopped)
     {
         m_isStopped = false;
+        if (preventPathCollision())
+        {
+            deferredRequestResumeData();
+            if (!m_isStopped)
+                m_session->handleTorrentStarted(this);
+            return;
+        }
+
         deferredRequestResumeData();
         m_session->handleTorrentStarted(this);
     }
@@ -2146,6 +2193,15 @@ void TorrentImpl::handleTorrentChecked()
                 m_hasFinishedStatus = false;
             else if (progress() == 1.0)
                 m_hasFinishedStatus = true;
+
+            if (preventPathCollision())
+            {
+                if (needSaveResumeData())
+                    deferredRequestResumeData();
+
+                m_session->handleTorrentChecked(this);
+                return;
+            }
 
             adjustStorageLocation();
             manageActualFilePaths();
@@ -2556,6 +2612,157 @@ void TorrentImpl::adjustStorageLocation()
 
     if ((targetPath != actualStorageLocation()) || isMoveInProgress())
         moveStorage(targetPath, MoveStorageContext::AdjustCurrentLocation);
+}
+
+bool TorrentImpl::preventPathCollision()
+{
+    if (!hasMetadata() || isStopped() || isChecking() || isFinished() || (progress() >= 1.0) || (wantedSize() <= 0))
+        return false;
+
+    const auto claimedPaths = [](const Torrent *torrent)
+    {
+        QSet<QString> result;
+        const PathList logicalPaths = torrent->filePaths();
+        const PathList actualPaths = torrent->actualFilePaths();
+        const QList<DownloadPriority> priorities = torrent->filePriorities();
+
+        const auto addPaths = [&result, &priorities](const Path &basePath, const PathList &paths)
+        {
+            if (basePath.isEmpty())
+                return;
+
+            for (qsizetype i = 0; i < paths.size(); ++i)
+            {
+                if (priorities.value(i, DownloadPriority::Normal) == DownloadPriority::Ignored)
+                    continue;
+                result.insert(pathCollisionKey(basePath / paths.at(i)));
+            }
+        };
+
+        addPaths(torrent->actualStorageLocation(), actualPaths);
+        addPaths(torrent->actualStorageLocation(), logicalPaths);
+        addPaths(torrent->savePath(), logicalPaths);
+        addPaths(torrent->downloadPath(), logicalPaths);
+        return result;
+    };
+
+    const QSet<QString> ownClaimedPaths = claimedPaths(this);
+    QSet<QString> occupiedPaths;
+    QStringList conflictingTorrents;
+
+    for (const Torrent *otherTorrent : m_session->torrents())
+    {
+        if ((otherTorrent == this) || otherTorrent->isStopped() || !otherTorrent->hasMetadata())
+            continue;
+
+        const QSet<QString> otherClaimedPaths = claimedPaths(otherTorrent);
+        bool conflicts = false;
+        for (const QString &path : ownClaimedPaths)
+        {
+            if (otherClaimedPaths.contains(path))
+            {
+                conflicts = true;
+                break;
+            }
+        }
+
+        if (conflicts)
+            conflictingTorrents.append(otherTorrent->name());
+        occupiedPaths.unite(otherClaimedPaths);
+    }
+
+    if (conflictingTorrents.isEmpty())
+        return false;
+
+    QList<Path> storageLocations;
+    const auto addStorageLocation = [&storageLocations](const Path &path)
+    {
+        if (!path.isEmpty() && !storageLocations.contains(path))
+            storageLocations.append(path);
+    };
+    addStorageLocation(actualStorageLocation());
+    addStorageLocation(savePath());
+    addStorageLocation(downloadPath());
+
+    PathList safeFilePaths;
+    const QString hashFragment = infoHash().toString().first(8);
+    for (int attempt = 1; attempt <= 999; ++attempt)
+    {
+        const QString suffix = (attempt == 1)
+                ? QStringLiteral(" [qB-%1]").arg(hashFragment)
+                : QStringLiteral(" [qB-%1-%2]").arg(hashFragment).arg(attempt);
+        const PathList candidatePaths = makeCollisionSafeFilePaths(filePaths(), suffix);
+        const Path candidateRoot = Path::findRootFolder(candidatePaths);
+
+        bool available = true;
+        for (const Path &storageLocation : asConst(storageLocations))
+        {
+            if (!candidateRoot.isEmpty() && (storageLocation / candidateRoot).exists())
+            {
+                available = false;
+                break;
+            }
+
+            for (const Path &candidatePath : candidatePaths)
+            {
+                const Path absolutePath = storageLocation / candidatePath;
+                if (absolutePath.exists() || occupiedPaths.contains(pathCollisionKey(absolutePath)))
+                {
+                    available = false;
+                    break;
+                }
+            }
+
+            if (!available)
+                break;
+        }
+
+        if (available)
+        {
+            safeFilePaths = candidatePaths;
+            break;
+        }
+    }
+
+    if (safeFilePaths.isEmpty())
+    {
+        stop();
+        LogMsg(tr("Stopped torrent because no collision-safe content path could be allocated. Torrent: \"%1\". Conflicting torrents: %2")
+                .arg(name(), conflictingTorrents.join(u", "_s)), Log::CRITICAL);
+        return true;
+    }
+
+    const Path oldContentPath = contentPath();
+    reloadWithFilePaths(safeFilePaths);
+    LogMsg(tr("Protected torrent data by assigning a collision-safe content path. Torrent: \"%1\". Old path: \"%2\". New path: \"%3\". Conflicting torrents: %4")
+            .arg(name(), oldContentPath.toString(), contentPath().toString(), conflictingTorrents.join(u", "_s)), Log::WARNING);
+    return true;
+}
+
+void TorrentImpl::reloadWithFilePaths(const PathList &filePaths)
+{
+    Q_ASSERT(hasMetadata());
+    Q_ASSERT(filePaths.size() == filesCount());
+    if (!hasMetadata() || (filePaths.size() != filesCount())) [[unlikely]]
+        return;
+
+    m_filePaths = filePaths;
+    m_ltAddTorrentParams.ti = std::const_pointer_cast<lt::torrent_info>(nativeTorrentInfo());
+    m_ltAddTorrentParams.save_path = actualStorageLocation().toString().toStdString();
+    m_ltAddTorrentParams.renamed_files.clear();
+
+    const QList<lt::file_index_t> nativeIndexes = m_torrentInfo.nativeIndexes();
+    for (qsizetype i = 0; i < filePaths.size(); ++i)
+        m_ltAddTorrentParams.renamed_files[nativeIndexes.at(i)] = filePaths.at(i).toString().toStdString();
+
+    m_ltAddTorrentParams.have_pieces.clear();
+    m_ltAddTorrentParams.verified_pieces.clear();
+    m_ltAddTorrentParams.unfinished_pieces.clear();
+    m_ltAddTorrentParams.flags &= ~lt::torrent_flags::seed_mode;
+    m_hasFinishedStatus = false;
+    m_hasMissingFiles = false;
+    m_unchecked = false;
+    reload();
 }
 
 void TorrentImpl::doRenameFile(const int index, const Path &path, const int folderRenameJobID)

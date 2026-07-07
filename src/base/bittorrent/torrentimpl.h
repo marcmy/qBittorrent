@@ -316,6 +316,8 @@ namespace BitTorrent
         void adjustStorageLocation();
         void moveStorage(const Path &newPath, MoveStorageContext context);
         void manageActualFilePaths();
+        bool preventPathCollision();
+        void reloadWithFilePaths(const PathList &filePaths);
         void applyFirstLastPiecePriority(bool enabled);
 
         void prepareResumeData(lt::add_torrent_params resumeData);
