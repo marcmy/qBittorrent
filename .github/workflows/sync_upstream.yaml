@@ -1,0 +1,71 @@
+name: Sync upstream after libtorrent
+
+on:
+  repository_dispatch:
+    types:
+      - libtorrent-upstream-synced
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync qBittorrent and rebuild
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out fork master
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: master
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Fetch upstream master
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/qbittorrent/qBittorrent.git
+          git fetch --prune --no-tags upstream master
+
+      - name: Merge upstream master
+        id: sync
+        run: |
+          if git merge-base --is-ancestor upstream/master HEAD; then
+            echo "qBittorrent master is already current with upstream."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git merge --no-edit upstream/master
+            git push origin HEAD:master
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Start Windows build against latest libtorrent
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'ci_windows.yaml',
+              ref: 'master',
+              inputs: {
+                libtorrent_ref: 'RC_2_1'
+              }
+            });
+
+            core.summary
+              .addHeading('Upstream sync chain')
+              .addRaw(`qBittorrent changed: ${{ steps.sync.outputs.changed }}\n`)
+              .addRaw(`qBittorrent head: ${{ steps.sync.outputs.head_sha }}\n`)
+              .addRaw(`libtorrent head: ${{ github.event.client_payload.libtorrent_sha || 'manual dispatch' }}\n`)
+              .write();
