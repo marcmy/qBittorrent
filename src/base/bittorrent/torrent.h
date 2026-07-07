@@ -125,6 +125,13 @@ namespace BitTorrent
         };
         Q_ENUM(StopCondition)
 
+        enum class PathCollisionResolution
+        {
+            UseExistingData,
+            CreateProtectedCopy
+        };
+        Q_ENUM(PathCollisionResolution)
+
         static const qreal MAX_RATIO;
 
         using TorrentContentHandler::TorrentContentHandler;
@@ -177,7 +184,6 @@ namespace BitTorrent
         // Torrent C (singlefile)
         //
         // file1
-        //
         //
         // Results:
         // |   |           rootPath           |                contentPath                 |
@@ -279,6 +285,7 @@ namespace BitTorrent
         virtual void setName(const QString &name) = 0;
         virtual void setSequentialDownload(bool enable) = 0;
         virtual void setFirstLastPiecePriority(bool enabled) = 0;
+        virtual void resolvePathCollision(PathCollisionResolution resolution) = 0;
         virtual void stop() = 0;
         virtual void start(TorrentOperatingMode mode = TorrentOperatingMode::AutoManaged) = 0;
         virtual void forceReannounce(int index = -1) = 0;
@@ -313,6 +320,10 @@ namespace BitTorrent
         virtual QFuture<QList<int>> fetchPieceAvailability() const = 0;
         virtual QFuture<QBitArray> fetchDownloadingPieces() const = 0;
 
+    signals:
+        void pathCollisionDetected(const QStringList &conflictingTorrents);
+
+    public:
         TorrentID id() const;
         bool isRunning() const;
         qlonglong remainingSize() const;
