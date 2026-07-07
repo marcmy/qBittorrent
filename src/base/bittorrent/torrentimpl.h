@@ -214,6 +214,7 @@ namespace BitTorrent
         void setName(const QString &name) override;
         void setSequentialDownload(bool enable) override;
         void setFirstLastPiecePriority(bool enabled) override;
+        void resolvePathCollision(Torrent::PathCollisionResolution resolution) override;
         void stop() override;
         void start(TorrentOperatingMode mode = TorrentOperatingMode::AutoManaged) override;
         void forceReannounce(int index = -1) override;
@@ -377,6 +378,7 @@ namespace BitTorrent
         ShareLimits m_shareLimits;
         TorrentOperatingMode m_operatingMode = TorrentOperatingMode::AutoManaged;
         TorrentContentLayout m_contentLayout = TorrentContentLayout::Original;
+        QString m_sharedContentPathSignature;
         bool m_hasFinishedStatus = false;
         bool m_hasMissingFiles = false;
         bool m_hasFirstLastPiecePriority = false;
