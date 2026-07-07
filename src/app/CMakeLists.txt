@@ -50,7 +50,6 @@ target_sources(qbt_app PRIVATE
     filelogger.cpp
     legalnotice.cpp
     localpeer.cpp
-    pathcollisionprompt.cpp
     main.cpp
     signalhandler.cpp
     upgrade.cpp
@@ -131,6 +130,7 @@ endif()
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 if (GUI)
+    target_sources(qbt_app PRIVATE pathcollisionprompt.cpp)
     target_link_libraries(qbt_app PRIVATE qbt_gui)
     if ((CMAKE_SYSTEM_NAME STREQUAL "Windows") OR (CMAKE_SYSTEM_NAME STREQUAL "Darwin"))
         qt_import_plugins(qbt_app INCLUDE Qt::QSvgIconPlugin Qt::QSvgPlugin)
