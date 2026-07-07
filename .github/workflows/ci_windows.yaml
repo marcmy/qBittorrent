@@ -259,3 +259,24 @@ jobs:
         with:
           archive: false
           path: qBittorrent-Custom_Windows-x64_libtorrent-${{ env.LIBTORRENT_REF_SAFE }}-${{ env.LIBTORRENT_SHA_SHORT }}-setup.exe
+
+  update-scoop:
+    name: Trigger scoop-bucket Excavator
+    needs: ci
+    if: >-
+      github.ref == 'refs/heads/master' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    environment: scoop-bucket
+    permissions:
+      contents: read
+
+    steps:
+      - name: Dispatch qbittorrent-custom update
+        uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
+        with:
+          token: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          repository: marcmy/scoop-bucket
+          event-type: qbittorrent-custom-built
+          client-payload: >-
+            {"run_id":"${{ github.run_id }}","head_sha":"${{ github.sha }}"}
