@@ -9,5 +9,7 @@ paths-ignore:
   - "src/webui/www/private/scripts/lib/vanillaSelectBox.js"
   - "src/searchengine/nova3/socks.py"
 
+# Run the full security-focused suite without importing CodeQL's broad
+# maintainability/correctness backlog into the security dashboard.
 queries:
-  - uses: security-and-quality
+  - uses: security-extended
