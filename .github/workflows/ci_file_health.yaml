@@ -18,17 +18,17 @@ jobs:
       security-events: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
       - name: Setup python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "*"
 
       - name: Check files
-        uses: j178/prek-action@v2
+        uses: j178/prek-action@e98a699c41eb69ab013a45817a0406469a748f8d # v2
 
       - name: Check doc
         env:
@@ -69,7 +69,7 @@ jobs:
             > "${{ runner.temp }}/zizmor_results.sarif"
 
       - name: Upload zizmor results
-        uses: github/codeql-action/upload-sarif@v4.36.2
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
         with:
           category: zizmor
           sarif_file: "${{ runner.temp }}/zizmor_results.sarif"
