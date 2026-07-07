@@ -18,7 +18,7 @@ concurrency:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
-    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
 
     permissions:
       # Upload CodeQL results to the repository security dashboard.
@@ -35,7 +35,10 @@ jobs:
           - language: actions
             build-mode: none
           - language: c-cpp
-            build-mode: autobuild
+            # qBittorrent's real build requires Qt, Boost and libtorrent setup.
+            # No-build mode keeps CodeQL independent from the product CI while
+            # still providing supported C/C++ source analysis.
+            build-mode: none
           - language: javascript-typescript
             build-mode: none
           - language: python
@@ -53,13 +56,6 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           config-file: ./.github/codeql/codeql-config.yml
-
-      - name: Run manual build steps
-        if: matrix.build-mode == 'manual'
-        shell: bash
-        run: |
-          echo "No manual CodeQL build is configured for ${{ matrix.language }}."
-          exit 1
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v4
