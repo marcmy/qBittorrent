@@ -50,6 +50,7 @@ target_sources(qbt_app PRIVATE
     filelogger.cpp
     legalnotice.cpp
     localpeer.cpp
+    pathcollisionprompt.cpp
     main.cpp
     signalhandler.cpp
     upgrade.cpp
@@ -82,7 +83,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set_source_files_properties(
         "${qBittorrent_SOURCE_DIR}/dist/mac/qt.conf"
         "${qBittorrent_SOURCE_DIR}/dist/mac/qBitTorrentDocument.icns"
-        "${qBittorrent_SOURCE_DIR}/dist/mac/qBitTorrentIncompleteData.icns"
+        "${qBittorrent_SOURCE_DIR}/dist/mac/qBittorrentIncompleteData.icns"
         "${qBittorrent_SOURCE_DIR}/dist/mac/qbittorrent_mac.icns"
             PROPERTIES
                 MACOSX_PACKAGE_LOCATION Resources
@@ -113,7 +114,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
         ${QT_TRANSLATIONS}
         ${qBittorrent_SOURCE_DIR}/dist/mac/qt.conf
         ${qBittorrent_SOURCE_DIR}/dist/mac/qBitTorrentDocument.icns
-        ${qBittorrent_SOURCE_DIR}/dist/mac/qBitTorrentIncompleteData.icns
+        ${qBittorrent_SOURCE_DIR}/dist/mac/qBittorrentIncompleteData.icns
         ${qBittorrent_SOURCE_DIR}/dist/mac/qbittorrent_mac.icns
     )
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Windows")
