@@ -13,6 +13,7 @@
 #include <QMessageBox>
 #include <QPointer>
 #include <QPushButton>
+#include <QStringList>
 #include <QTimer>
 
 #include "base/bittorrent/session.h"
