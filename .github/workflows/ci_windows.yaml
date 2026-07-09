@@ -8,7 +8,7 @@ on:
       libtorrent_ref:
         description: libtorrent branch, tag, or commit to build
         required: false
-        default: RC_2_1
+        default: custom/qbittorrent-2.1
         type: string
 
 permissions: {}
@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   ci:
-    name: Build (marcmy/libtorrent ${{ inputs.libtorrent_ref || 'RC_2_1' }}, x64)
+    name: Build (marcmy/libtorrent ${{ inputs.libtorrent_ref || 'custom/qbittorrent-2.1' }}, x64)
     runs-on: windows-latest
     permissions:
       actions: write # zizmor: ignore[excessive-permissions] required for vcpkg x-gha binary cache writes
@@ -32,7 +32,7 @@ jobs:
       vcpkg_triplet: "x64-windows-static-md-release"
       qt_arch: "win64_msvc2022_64"
       libtorrent_repository: "marcmy/libtorrent"
-      libtorrent_ref: "${{ inputs.libtorrent_ref || 'RC_2_1' }}"
+      libtorrent_ref: "${{ inputs.libtorrent_ref || 'custom/qbittorrent-2.1' }}"
 
     steps:
       - name: Checkout qBittorrent
@@ -132,7 +132,7 @@ jobs:
           $requestedRef = "${{ env.libtorrent_ref }}"
           $libtorrentRefSafe = if ($requestedRef -match '^[0-9A-Fa-f]{40}$')
           {
-            "RC_2_1"
+            "custom-qbittorrent-2.1"
           }
           else
           {
@@ -271,7 +271,7 @@ jobs:
     name: Trigger scoop-bucket Excavator
     needs: ci
     if: >-
-      github.ref == 'refs/heads/master' &&
+      github.ref == 'refs/heads/custom/master' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     environment: scoop-bucket
