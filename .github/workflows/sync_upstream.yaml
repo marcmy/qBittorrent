@@ -1,0 +1,120 @@
+name: Sync upstream after libtorrent
+
+on:
+  repository_dispatch:
+    types:
+      - libtorrent-upstream-synced
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Mirror and merge qBittorrent master
+    runs-on: ubuntu-latest
+
+    permissions:
+      actions: write
+      contents: write
+
+    steps:
+      - name: Check out custom qBittorrent branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: custom/master
+          fetch-depth: 0
+          token: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
+          persist-credentials: true
+
+      - name: Fetch source and mirror branches
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add source https://github.com/qbittorrent/qBittorrent.git
+          git fetch --prune --no-tags source master
+          git fetch --no-tags origin \
+            +refs/heads/upstream/master:refs/remotes/origin/upstream/master
+
+      - name: Update pristine upstream mirror
+        id: mirror
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          source_sha="$(git rev-parse source/master)"
+          mirror_sha="$(git rev-parse origin/upstream/master)"
+
+          if [[ "$source_sha" == "$mirror_sha" ]]; then
+            echo "upstream/master already matches qbittorrent/qBittorrent:master."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git push \
+              --force-with-lease="refs/heads/upstream/master:$mirror_sha" \
+              origin \
+              source/master:refs/heads/upstream/master
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "head_sha=$source_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Merge mirror into custom branch
+        id: sync
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if git merge-base --is-ancestor source/master HEAD; then
+            echo "custom/master already contains current upstream master."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git merge --no-edit source/master
+            git push origin HEAD:refs/heads/custom/master
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Start Windows build against synced libtorrent
+        if: >-
+          github.event_name == 'workflow_dispatch' ||
+          steps.sync.outputs.changed == 'true' ||
+          github.event.client_payload.libtorrent_changed == 'true'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          LIBTORRENT_REF: ${{ github.event.client_payload.libtorrent_sha || 'custom/qbittorrent-2.1' }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'ci_windows.yaml',
+              ref: 'custom/master',
+              inputs: {
+                libtorrent_ref: process.env.LIBTORRENT_REF
+              }
+            });
+
+      - name: Summarize sync chain
+        if: always()
+        env:
+          MIRROR_CHANGED: ${{ steps.mirror.outputs.changed }}
+          MIRROR_HEAD: ${{ steps.mirror.outputs.head_sha }}
+          QBITTORRENT_CHANGED: ${{ steps.sync.outputs.changed }}
+          QBITTORRENT_HEAD: ${{ steps.sync.outputs.head_sha }}
+          LIBTORRENT_CHANGED: ${{ github.event.client_payload.libtorrent_changed || 'manual' }}
+          LIBTORRENT_HEAD: ${{ github.event.client_payload.libtorrent_sha || 'custom/qbittorrent-2.1' }}
+        run: |
+          {
+            echo "## Upstream sync chain"
+            echo "- qBittorrent mirror changed: $MIRROR_CHANGED"
+            echo "- qBittorrent mirror head: $MIRROR_HEAD"
+            echo "- qBittorrent custom changed: $QBITTORRENT_CHANGED"
+            echo "- qBittorrent custom head: $QBITTORRENT_HEAD"
+            echo "- libtorrent changed: $LIBTORRENT_CHANGED"
+            echo "- libtorrent ref: $LIBTORRENT_HEAD"
+          } >> "$GITHUB_STEP_SUMMARY"
