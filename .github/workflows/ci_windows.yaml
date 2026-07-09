@@ -22,7 +22,7 @@ jobs:
     name: Build (marcmy/libtorrent ${{ inputs.libtorrent_ref || 'RC_2_1' }}, x64)
     runs-on: windows-latest
     permissions:
-      actions: write
+      actions: write # zizmor: ignore[excessive-permissions] required for vcpkg x-gha binary cache writes
 
     env:
       boost_path: "${{ github.workspace }}/../boost"
