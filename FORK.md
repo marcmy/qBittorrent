@@ -18,7 +18,7 @@ Windows x64 is the active build and daily-driver target. Ubuntu and macOS do not
 
 ## Security scanning policy
 
-CodeQL scans first-party qBittorrent code with the `security-and-quality` query suite. Exact vendored snapshots are excluded in `.github/codeql/codeql-config.yml` so third-party findings do not obscure actionable fork-owned results. Those exclusions must remain narrow and should be removed when the corresponding library is replaced or updated.
+CodeQL scans first-party qBittorrent code with the `security-extended` query suite. Exact vendored snapshots are excluded in `.github/codeql/codeql-config.yml` so third-party findings do not obscure actionable fork-owned results. Those exclusions must remain narrow and should be removed when the corresponding library is replaced or updated.
 
 Zizmor SARIF uploads omit note-severity style findings. Warning and error findings remain visible and must be fixed or explicitly justified.
 
