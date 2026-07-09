@@ -5,12 +5,12 @@ This fork is the application half of a coordinated qBittorrent + libtorrent proj
 ## Canonical pairing
 
 - qBittorrent repository: `marcmy/qBittorrent`
-- qBittorrent baseline: `master`
+- qBittorrent baseline: `custom/master`
 - libtorrent repository: `marcmy/libtorrent`
-- libtorrent baseline: `RC_2_1`
+- libtorrent baseline: `custom/qbittorrent-2.1`
 - Required libtorrent series: 2.1
 
-`RC_2_0` is retained in the libtorrent fork only for compatibility research or deliberate backports. Libtorrent `master` is retained for future-development comparison and must not silently replace `RC_2_1` in routine qBittorrent builds.
+`upstream/master` is the pristine mirror of `qbittorrent/qBittorrent:master`; `custom/master` is the active qBittorrent fork branch. In libtorrent, `upstream/RC_2_1` is the pristine upstream mirror and `custom/qbittorrent-2.1` is the active engine branch. The former qBittorrent `master` and libtorrent `RC_2_1` custom lanes are retained as rollback points. Libtorrent `RC_2_0` and `master` retain their upstream roles for compatibility work and future-development comparison.
 
 ## Platform scope
 
@@ -67,7 +67,7 @@ Never assume that a binary reporting only `libtorrent 2.1.0.0` uniquely identifi
 
 1. Reproduce and trace the behavior across the qBittorrent/libtorrent boundary.
 2. Decide which repository owns the root cause.
-3. Create a focused branch from `master` here and, when needed, a matching branch from `RC_2_1` in libtorrent.
+3. Create a focused branch from `custom/master` here and, when needed, a matching branch from `custom/qbittorrent-2.1` in libtorrent.
 4. Keep application work and engine work in separate commits and separate same-fork pull requests.
 5. Build qBittorrent against the exact custom libtorrent commit being tested.
 6. Preserve a known-good build before replacing the daily-driver installation.
