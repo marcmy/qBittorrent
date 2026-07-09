@@ -2,7 +2,7 @@
 
 This repository is `marcmy/qBittorrent`, the application half of a coordinated custom qBittorrent + libtorrent project.
 
-Read [FORK.md] before changing BitTorrent behavior. The canonical engine pairing is `marcmy/libtorrent:RC_2_1`; this fork intentionally targets libtorrent 2.1.
+Read [FORK.md] before changing BitTorrent behavior. The canonical pairing is `marcmy/qBittorrent:custom/master` with `marcmy/libtorrent:custom/qbittorrent-2.1`; this fork intentionally targets libtorrent 2.1.
 
 Before implementing a feature or fix, determine whether the root behavior belongs to qBittorrent, libtorrent, or both. Implement it at the lowest correct layer rather than masking an engine problem in the application.
 
