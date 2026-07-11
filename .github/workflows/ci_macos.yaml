@@ -4,6 +4,10 @@ on: workflow_dispatch
 
 permissions: {}
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   disabled:
     name: macOS CI disabled
