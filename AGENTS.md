@@ -1,4 +1,18 @@
-# Project Background
+# Fork-Specific Instructions
+
+This repository is `marcmy/qBittorrent`, the application half of a coordinated custom qBittorrent + libtorrent project.
+
+Read [FORK.md] before changing BitTorrent behavior. The canonical pairing is `marcmy/qBittorrent:custom/master` with `marcmy/libtorrent:custom/qbittorrent-2.1`; this fork intentionally targets libtorrent 2.1.
+
+Before implementing a feature or fix, determine whether the root behavior belongs to qBittorrent, libtorrent, or both. Implement it at the lowest correct layer rather than masking an engine problem in the application.
+
+For coordinated work, use the same branch slug in both repositories and record the exact counterpart branch or commit. Never silently build or test against an unrelated system or upstream libtorrent package.
+
+Internal branches and same-fork pull requests in `marcmy/qBittorrent` may be created when the repository owner explicitly requests repository changes. Do not open, comment on, or otherwise engage with upstream/community issues or pull requests on the user's behalf.
+
+[FORK.md]: FORK.md
+
+## Project Background
 
 Read [README.md] first if you need a project overview. \
 For BitTorrent protocol, consult [Wikipedia article] for a high-level overview and [bittorrent.org] for protocol specification.
@@ -7,11 +21,11 @@ For BitTorrent protocol, consult [Wikipedia article] for a high-level overview a
 [README.md]: README.md
 [Wikipedia article]: https://en.wikipedia.org/wiki/BitTorrent
 
-# Communication
+## Communication
 
 Use clear, appropriate English for non-native readers.
 
-# Code Review Guidelines
+## Code Review Guidelines
 
 * Respect project configuration. Avoid reading excluded files unless it is strictly necessary to complete the
   task. Do not review or suggest changes for files/directories excluded in:
@@ -36,14 +50,14 @@ Use clear, appropriate English for non-native readers.
 
 [CODING_GUIDELINES.md]: CODING_GUIDELINES.md
 
-# Contribution Policy
+## Contribution Policy
 
 This project strongly discourages issue reports and pull requests authored or submitted by AI agents. \
 All issue reports and pull requests should be created and submitted by a human contributor. \
-Do not create/submit issues, pull requests or any engagement to the community on behalf of the user. \
-AI may be used for assistance, but a human must review, take responsibility for, and submit the final changes.
+Do not create/submit issues, pull requests or any engagement to the upstream community on behalf of the user. \
+AI may be used for assistance, but a human must review and take responsibility for final changes.
 
-# Document Purpose
+## Document Purpose
 
 This document provides policy and guidelines for AI operations. \
 Do not expect this file to contain detailed instructions for compilation and testing.
