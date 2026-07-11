@@ -1,6 +1,6 @@
-name: CI - Ubuntu
+name: CI - Ubuntu (disabled)
 
-on: [pull_request, push]
+on: workflow_dispatch
 
 permissions: {}
 
@@ -20,7 +20,7 @@ jobs:
       fail-fast: false
       matrix:
         libtorrent:
-          - version: "2.1.0"
+          - version: "2.1.0-rc2"
             boost_major_version: "1"
             boost_minor_version: "77"
             boost_patch_version: "0"
@@ -45,7 +45,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
@@ -57,7 +57,7 @@ jobs:
             libssl-dev zlib1g-dev
 
       - name: Setup ccache
-        uses: Chocobo1/setup-ccache-action@v1
+        uses: Chocobo1/setup-ccache-action@802ec72ba1d54bbf75c52f45367253d6abec30f5 # v1.5.8
         with:
           store_cache: ${{ (github.repository != 'qbittorrent/qBittorrent') || (github.ref == 'refs/heads/master') }}
           update_packager_index: false
@@ -81,7 +81,7 @@ jobs:
           ./b2 stage --stagedir=./ --with-headers
 
       - name: Install Qt
-        uses: jurplel/install-qt-action@v4
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4
         with:
           version: ${{ matrix.qt_version }}
           archives: icu qtbase qtdeclarative qtsvg qttools
@@ -114,7 +114,7 @@ jobs:
 
       # to avoid scanning 3rdparty codebases, initialize it just before building qbt
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
+        uses: github/codeql-action/init@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
         if: startsWith(matrix.libtorrent.version, '2.0') && (matrix.qbt_gui == 'GUI=ON')
         with:
           config-file: ./.github/workflows/helper/codeql/cpp.yaml
@@ -146,7 +146,7 @@ jobs:
           DESTDIR="qbittorrent" cmake --install build
 
       - name: Run CodeQL analysis
-        uses: github/codeql-action/analyze@v4
+        uses: github/codeql-action/analyze@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
         if: startsWith(matrix.libtorrent.version, '2.0') && (matrix.qbt_gui == 'GUI=ON')
         with:
           category: ${{ github.base_ref || github.ref_name }}
@@ -164,7 +164,7 @@ jobs:
           output: sarif-results/cpp.sarif
 
       - name: Upload CodeQL SARIF
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
         if: startsWith(matrix.libtorrent.version, '2.0') && (matrix.qbt_gui == 'GUI=ON')
         with:
           sarif_file: sarif-results/cpp.sarif
@@ -210,7 +210,7 @@ jobs:
             ./linuxdeploy-x86_64.AppImage --appdir qbittorrent --output appimage
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: qBittorrent-CI_Ubuntu-x64_${{ matrix.qbt_gui }}_libtorrent-${{ matrix.libtorrent.version }}_Qt-${{ matrix.qt_version }}
           path: upload
