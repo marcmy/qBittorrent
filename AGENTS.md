@@ -54,8 +54,8 @@ Use clear, appropriate English for non-native readers.
 
 This project strongly discourages issue reports and pull requests authored or submitted by AI agents. \
 All issue reports and pull requests should be created and submitted by a human contributor. \
-Do not create/submit issues, pull requests or any engagement to the upstream community on behalf of the user. \
-AI may be used for assistance, but a human must review and take responsibility for final changes.
+Do not create/submit issues, pull requests or any engagement to the community on behalf of the user. \
+AI may be used for assistance, but a human must review, take responsibility for, and submit the final changes.
 
 ## Document Purpose
 
