@@ -1,16 +1,4 @@
-# Fork-Specific Instructions
-
-This repository is `marcmy/qBittorrent`, the application half of a coordinated custom qBittorrent + libtorrent project.
-
-Read [FORK.md] before changing BitTorrent behavior. The canonical pairing is `marcmy/qBittorrent:custom/master` with `marcmy/libtorrent:custom/qbittorrent-2.1`; this fork intentionally targets libtorrent 2.1.
-
-Before implementing a feature or fix, determine whether the root behavior belongs to qBittorrent, libtorrent, or both. Implement it at the lowest correct layer rather than masking an engine problem in the application.
-
-For coordinated work, use the same branch slug in both repositories and record the exact counterpart branch or commit. Never silently build or test against an unrelated system or upstream libtorrent package.
-
-Internal branches and same-fork pull requests in `marcmy/qBittorrent` may be created when the repository owner explicitly requests repository changes. Do not open, comment on, or otherwise engage with upstream/community issues or pull requests on the user's behalf.
-
-[FORK.md]: FORK.md
+# Policy and Guidelines for AI Operations
 
 ## Project Background
 
