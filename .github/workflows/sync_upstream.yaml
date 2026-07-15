@@ -19,9 +19,8 @@ concurrency:
 
 jobs:
   sync:
-    name: Mirror and merge qBittorrent master
+    name: Merge qBittorrent master
     runs-on: ubuntu-latest
-    environment: upstream-sync
 
     permissions:
       actions: write
@@ -33,55 +32,46 @@ jobs:
         with:
           ref: custom/master
           fetch-depth: 0
-          token: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
+          token: ${{ github.token }}
           persist-credentials: true
 
-      - name: Fetch source and mirror branches
+      - name: Fetch upstream qBittorrent master
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote add source https://github.com/qbittorrent/qBittorrent.git
           git fetch --prune --no-tags source master
-          git fetch --no-tags origin \
-            +refs/heads/upstream/master:refs/remotes/origin/upstream/master
 
-      - name: Update pristine upstream mirror
-        id: mirror
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          source_sha="$(git rev-parse source/master)"
-          mirror_sha="$(git rev-parse origin/upstream/master)"
-
-          if [[ "$source_sha" == "$mirror_sha" ]]; then
-            echo "upstream/master already matches qbittorrent/qBittorrent:master."
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            git push \
-              --force-with-lease="refs/heads/upstream/master:$mirror_sha" \
-              origin \
-              source/master:refs/heads/upstream/master
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
-
-          echo "head_sha=$source_sha" >> "$GITHUB_OUTPUT"
-
-      - name: Merge mirror into custom branch
+      - name: Merge upstream while preserving fork workflows
         id: sync
         shell: bash
         run: |
           set -euo pipefail
 
+          source_sha="$(git rev-parse source/master)"
+          original_head="$(git rev-parse HEAD)"
+
           if git merge-base --is-ancestor source/master HEAD; then
             echo "custom/master already contains current upstream master."
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
-            git merge --no-edit source/master
+            git merge --no-commit --no-ff source/master
+
+            # Keep this fork's workflow definitions. This prevents upstream
+            # workflow-file changes from requiring a token with workflow scope
+            # and avoids launching unrelated upstream CI in the fork.
+            if git cat-file -e "$original_head:.github/workflows" 2>/dev/null; then
+              git checkout "$original_head" -- .github/workflows
+            else
+              rm -rf .github/workflows
+            fi
+
+            git commit --no-edit
             git push origin HEAD:refs/heads/custom/master
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
           echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Start Windows build against synced libtorrent
@@ -108,8 +98,7 @@ jobs:
       - name: Summarize sync chain
         if: always()
         env:
-          MIRROR_CHANGED: ${{ steps.mirror.outputs.changed }}
-          MIRROR_HEAD: ${{ steps.mirror.outputs.head_sha }}
+          SOURCE_HEAD: ${{ steps.sync.outputs.source_sha }}
           QBITTORRENT_CHANGED: ${{ steps.sync.outputs.changed }}
           QBITTORRENT_HEAD: ${{ steps.sync.outputs.head_sha }}
           LIBTORRENT_CHANGED: ${{ github.event.client_payload.libtorrent_changed || 'manual' }}
@@ -117,8 +106,7 @@ jobs:
         run: |
           {
             echo "## Upstream sync chain"
-            echo "- qBittorrent mirror changed: $MIRROR_CHANGED"
-            echo "- qBittorrent mirror head: $MIRROR_HEAD"
+            echo "- qBittorrent upstream head: $SOURCE_HEAD"
             echo "- qBittorrent custom changed: $QBITTORRENT_CHANGED"
             echo "- qBittorrent custom head: $QBITTORRENT_HEAD"
             echo "- libtorrent changed: $LIBTORRENT_CHANGED"
