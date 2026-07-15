@@ -16,6 +16,7 @@ jobs:
   sync:
     name: Mirror and merge qBittorrent master
     runs-on: ubuntu-latest
+    environment: upstream-sync
 
     permissions:
       actions: write
