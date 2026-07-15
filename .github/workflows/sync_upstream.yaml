@@ -1,6 +1,11 @@
 name: Sync upstream after libtorrent
 
 on:
+  push:
+    branches:
+      - custom/master
+    paths:
+      - .github/workflows/sync_upstream.yaml
   repository_dispatch:
     types:
       - libtorrent-upstream-synced
