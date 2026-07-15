@@ -10,6 +10,8 @@ on:
     types:
       - libtorrent-upstream-synced
   workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
 
 permissions: {}
 
@@ -55,15 +57,33 @@ jobs:
             echo "custom/master already contains current upstream master."
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
-            git merge --no-commit --no-ff source/master
+            merge_status=0
+            git merge --no-commit --no-ff source/master || merge_status=$?
 
-            # Keep this fork's workflow definitions. This prevents upstream
-            # workflow-file changes from requiring a token with workflow scope
-            # and avoids launching unrelated upstream CI in the fork.
+            # Replace the entire workflow directory with the exact tree from
+            # the fork before the merge. Removing it first also discards any
+            # new workflow files introduced by upstream.
+            git rm -r -f --ignore-unmatch .github/workflows
             if git cat-file -e "$original_head:.github/workflows" 2>/dev/null; then
               git checkout "$original_head" -- .github/workflows
-            else
-              rm -rf .github/workflows
+            fi
+
+            unresolved="$(git diff --name-only --diff-filter=U)"
+            if [[ -n "$unresolved" ]]; then
+              echo "::error::Unresolved upstream merge conflicts remain outside .github/workflows:"
+              printf '%s\n' "$unresolved"
+              exit 1
+            fi
+
+            if [[ "$merge_status" -ne 0 ]] && ! git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+              echo "::error::git merge failed without creating a resolvable merge state."
+              exit "$merge_status"
+            fi
+
+            if ! git diff --quiet "$original_head" -- .github/workflows; then
+              echo "::error::Fork workflow files changed during the upstream merge."
+              git diff "$original_head" -- .github/workflows
+              exit 1
             fi
 
             git commit --no-edit
@@ -82,6 +102,7 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           LIBTORRENT_REF: ${{ github.event.client_payload.libtorrent_sha || 'custom/qbittorrent-2.1' }}
+          QBITTORRENT_REF: ${{ steps.sync.outputs.head_sha }}
         with:
           github-token: ${{ github.token }}
           script: |
@@ -91,7 +112,8 @@ jobs:
               workflow_id: 'ci_windows.yaml',
               ref: 'custom/master',
               inputs: {
-                libtorrent_ref: process.env.LIBTORRENT_REF
+                libtorrent_ref: process.env.LIBTORRENT_REF,
+                qbittorrent_ref: process.env.QBITTORRENT_REF
               }
             });
 
@@ -101,7 +123,7 @@ jobs:
           SOURCE_HEAD: ${{ steps.sync.outputs.source_sha }}
           QBITTORRENT_CHANGED: ${{ steps.sync.outputs.changed }}
           QBITTORRENT_HEAD: ${{ steps.sync.outputs.head_sha }}
-          LIBTORRENT_CHANGED: ${{ github.event.client_payload.libtorrent_changed || 'manual' }}
+          LIBTORRENT_CHANGED: ${{ github.event.client_payload.libtorrent_changed || 'manual-or-scheduled' }}
           LIBTORRENT_HEAD: ${{ github.event.client_payload.libtorrent_sha || 'custom/qbittorrent-2.1' }}
         run: |
           {
