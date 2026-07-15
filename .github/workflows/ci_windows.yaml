@@ -10,12 +10,17 @@ on:
         required: false
         default: custom/qbittorrent-2.1
         type: string
+      qbittorrent_ref:
+        description: qBittorrent branch, tag, or commit to build
+        required: false
+        default: custom/master
+        type: string
 
 permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: ${{ github.head_ref != '' }}
+  group: ci-windows-${{ inputs.qbittorrent_ref || github.ref }}-${{ inputs.libtorrent_ref || 'custom/qbittorrent-2.1' }}
+  cancel-in-progress: true
 
 jobs:
   ci:
@@ -23,6 +28,8 @@ jobs:
     runs-on: windows-latest
     permissions:
       actions: write # zizmor: ignore[excessive-permissions] required for vcpkg x-gha binary cache writes
+    outputs:
+      qbittorrent_sha: ${{ steps.qbittorrent-revision.outputs.sha }}
 
     env:
       boost_path: "${{ github.workspace }}/../boost"
@@ -33,12 +40,22 @@ jobs:
       qt_arch: "win64_msvc2022_64"
       libtorrent_repository: "marcmy/libtorrent"
       libtorrent_ref: "${{ inputs.libtorrent_ref || 'custom/qbittorrent-2.1' }}"
+      qbittorrent_ref: "${{ inputs.qbittorrent_ref || github.sha }}"
 
     steps:
       - name: Checkout qBittorrent
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          ref: ${{ env.qbittorrent_ref }}
           persist-credentials: false
+
+      - name: Record qBittorrent revision
+        id: qbittorrent-revision
+        shell: pwsh
+        run: |
+          $sha = git rev-parse HEAD
+          "QBITTORRENT_SHA=$sha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "sha=$sha" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Setup devcmd
         uses: TheMrMilchmann/setup-msvc-dev@79dac248aac9d0059f86eae9d8b5bfab4e95e97c # v4.0.0
@@ -192,8 +209,8 @@ jobs:
 
           @(
             "qBittorrent repository: ${{ github.repository }}",
-            "qBittorrent ref: ${{ github.ref }}",
-            "qBittorrent commit: ${{ github.sha }}",
+            "qBittorrent ref: ${{ env.qbittorrent_ref }}",
+            "qBittorrent commit: $env:QBITTORRENT_SHA",
             "libtorrent repository: ${{ env.libtorrent_repository }}",
             "libtorrent ref: ${{ env.libtorrent_ref }}",
             "libtorrent commit: $env:LIBTORRENT_SHA",
@@ -286,4 +303,4 @@ jobs:
           repository: marcmy/scoop-bucket
           event-type: qbittorrent-custom-built
           client-payload: >-
-            {"run_id":"${{ github.run_id }}","head_sha":"${{ github.sha }}"}
+            {"run_id":"${{ github.run_id }}","head_sha":"${{ needs.ci.outputs.qbittorrent_sha }}"}
