@@ -28,7 +28,7 @@ jobs:
         with:
           ref: custom/master
           fetch-depth: 0
-          token: ${{ github.token }}
+          token: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
           persist-credentials: true
 
       - name: Fetch source and mirror branches
@@ -53,8 +53,6 @@ jobs:
             echo "upstream/master already matches qbittorrent/qBittorrent:master."
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
-            # Use GITHUB_TOKEN for the mirror update so GitHub does not start
-            # the upstream repository's push-triggered workflows in this fork.
             git push \
               --force-with-lease="refs/heads/upstream/master:$mirror_sha" \
               origin \
@@ -63,15 +61,6 @@ jobs:
           fi
 
           echo "head_sha=$source_sha" >> "$GITHUB_OUTPUT"
-
-      - name: Switch to sync token for custom branch push
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ref: custom/master
-          fetch-depth: 0
-          token: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
-          persist-credentials: true
-          clean: false
 
       - name: Merge mirror into custom branch
         id: sync
