@@ -117,15 +117,14 @@ qbt_replace_exact(torrent_impl
 
     struct DriveAwareRecheckState
     {
-        bool originalLimitCaptured = false;
-        int originalLimit = 1;
-        int lastAppliedLimit = 1;
-        QHash<QString, QPointer<Torrent>> activeByDevice;
+        QHash<Torrent *, QString> activeDevices;
         QHash<QString, QQueue<QPointer<Torrent>>> pendingByDevice;
         QHash<Torrent *, QString> scheduledDevices;
+        QSet<Torrent *> activeScheduled;
         QSet<Torrent *> dispatching;
         QMetaObject::Connection finishedConnection;
         QMetaObject::Connection removedConnection;
+        QMetaObject::Connection destroyedConnection;
     };
 
     QHash<Session *, DriveAwareRecheckState> driveAwareRecheckStates;
@@ -133,26 +132,42 @@ qbt_replace_exact(torrent_impl
     void finishDriveAwareRecheck(Torrent *torrent);
     void removeDriveAwareRecheck(Torrent *torrent);
 
+    bool hasActiveDriveAwareRecheck(const DriveAwareRecheckState &state, const QString &deviceKey)
+    {
+        for (auto it = state.activeDevices.cbegin(); it != state.activeDevices.cend(); ++it)
+        {
+            if (it.value() == deviceKey)
+                return true;
+        }
+        return false;
+    }
+
+    void trackExistingDriveAwareRechecks(Session *session, DriveAwareRecheckState &state)
+    {
+        for (Torrent *torrent : session->torrents())
+        {
+            if (torrent->isChecking() && !state.activeDevices.contains(torrent))
+                state.activeDevices.insert(torrent, recheckStorageDeviceKey(torrent));
+        }
+    }
+
     void applyDriveAwareCheckingLimit(Session *session, DriveAwareRecheckState &state)
     {
-        const int desiredLimit = std::max(state.originalLimit, static_cast<int>(state.activeByDevice.size()));
-        if (session->maxActiveCheckingTorrents() != desiredLimit)
-            session->setMaxActiveCheckingTorrents(desiredLimit);
-        state.lastAppliedLimit = desiredLimit;
+        session->setMaxActiveCheckingTorrentsRuntimeMinimum(static_cast<int>(state.activeDevices.size()));
     }
 
     void ensureDriveAwareRecheckState(Session *session, DriveAwareRecheckState &state)
     {
-        if (state.originalLimitCaptured)
+        if (state.finishedConnection)
             return;
 
-        state.originalLimitCaptured = true;
-        state.originalLimit = session->maxActiveCheckingTorrents();
-        state.lastAppliedLimit = state.originalLimit;
         state.finishedConnection = QObject::connect(session, &Session::torrentFinishedChecking, session
                 , [](Torrent *torrent) { finishDriveAwareRecheck(torrent); });
         state.removedConnection = QObject::connect(session, &Session::torrentAboutToBeRemoved, session
                 , [](Torrent *torrent) { removeDriveAwareRecheck(torrent); });
+        state.destroyedConnection = QObject::connect(session, &QObject::destroyed
+                , [session] { driveAwareRecheckStates.remove(session); });
+        trackExistingDriveAwareRechecks(session, state);
     }
 
     bool consumeDriveAwareRecheckDispatch(Torrent *torrent)
@@ -176,6 +191,9 @@ qbt_replace_exact(torrent_impl
 
     void startNextDriveAwareRecheck(Session *session, DriveAwareRecheckState &state, const QString &deviceKey)
     {
+        if (hasActiveDriveAwareRecheck(state, deviceKey))
+            return;
+
         auto queueIt = state.pendingByDevice.find(deviceKey);
         if (queueIt == state.pendingByDevice.end())
             return;
@@ -186,7 +204,8 @@ qbt_replace_exact(torrent_impl
             if (next.isNull() || !state.scheduledDevices.contains(next.data()))
                 continue;
 
-            state.activeByDevice.insert(deviceKey, next);
+            state.activeDevices.insert(next.data(), deviceKey);
+            state.activeScheduled.insert(next.data());
             applyDriveAwareCheckingLimit(session, state);
             dispatchDriveAwareRecheck(next.data());
             break;
@@ -203,22 +222,32 @@ qbt_replace_exact(torrent_impl
             return;
 
         DriveAwareRecheckState &state = stateIt.value();
-        if (!state.scheduledDevices.isEmpty() || !state.activeByDevice.isEmpty())
+        if (!state.scheduledDevices.isEmpty())
         {
             applyDriveAwareCheckingLimit(session, state);
             return;
         }
 
-        // Do not overwrite a setting the user changed while the batch was running.
-        if (session->maxActiveCheckingTorrents() == state.lastAppliedLimit
-                && state.lastAppliedLimit != state.originalLimit)
-        {
-            session->setMaxActiveCheckingTorrents(state.originalLimit);
-        }
+        session->setMaxActiveCheckingTorrentsRuntimeMinimum({});
 
         QObject::disconnect(state.finishedConnection);
         QObject::disconnect(state.removedConnection);
+        QObject::disconnect(state.destroyedConnection);
         driveAwareRecheckStates.erase(stateIt);
+    }
+
+    void deferNextDriveAwareRecheck(Session *session, const QString &deviceKey)
+    {
+        QMetaObject::invokeMethod(session, [session, deviceKey]
+        {
+            auto stateIt = driveAwareRecheckStates.find(session);
+            if (stateIt == driveAwareRecheckStates.end())
+                return;
+
+            DriveAwareRecheckState &state = stateIt.value();
+            startNextDriveAwareRecheck(session, state, deviceKey);
+            cleanupDriveAwareRecheckState(session);
+        }, Qt::QueuedConnection);
     }
 
     void scheduleDriveAwareRecheck(Torrent *torrent)
@@ -226,6 +255,7 @@ qbt_replace_exact(torrent_impl
         Session *const session = torrent->session();
         DriveAwareRecheckState &state = driveAwareRecheckStates[session];
         ensureDriveAwareRecheckState(session, state);
+        trackExistingDriveAwareRechecks(session, state);
 
         if (state.scheduledDevices.contains(torrent))
             return;
@@ -233,16 +263,26 @@ qbt_replace_exact(torrent_impl
         const QString deviceKey = recheckStorageDeviceKey(torrent);
         state.scheduledDevices.insert(torrent, deviceKey);
 
-        const QPointer<Torrent> active = state.activeByDevice.value(deviceKey);
-        if (active.isNull())
+        if (state.activeDevices.contains(torrent))
         {
-            state.activeByDevice.insert(deviceKey, torrent);
+            // Preserve forceRecheck() semantics for the torrent that is
+            // already checking: restart that check rather than queueing a
+            // redundant second pass after it completes.
+            state.activeScheduled.insert(torrent);
+            applyDriveAwareCheckingLimit(session, state);
+            dispatchDriveAwareRecheck(torrent);
+        }
+        else if (!hasActiveDriveAwareRecheck(state, deviceKey))
+        {
+            state.activeDevices.insert(torrent, deviceKey);
+            state.activeScheduled.insert(torrent);
             applyDriveAwareCheckingLimit(session, state);
             dispatchDriveAwareRecheck(torrent);
         }
         else
         {
             state.pendingByDevice[deviceKey].enqueue(torrent);
+            applyDriveAwareCheckingLimit(session, state);
         }
     }
 
@@ -254,19 +294,18 @@ qbt_replace_exact(torrent_impl
             return;
 
         DriveAwareRecheckState &state = stateIt.value();
-        const auto scheduledIt = state.scheduledDevices.find(torrent);
-        if (scheduledIt == state.scheduledDevices.end())
+        const auto activeIt = state.activeDevices.find(torrent);
+        if (activeIt == state.activeDevices.end())
             return;
 
-        const QString deviceKey = scheduledIt.value();
-        state.scheduledDevices.erase(scheduledIt);
+        const QString deviceKey = activeIt.value();
+        state.activeDevices.erase(activeIt);
+        if (state.activeScheduled.remove(torrent))
+            state.scheduledDevices.remove(torrent);
         state.dispatching.remove(torrent);
 
-        if (state.activeByDevice.value(deviceKey).data() == torrent)
-        {
-            state.activeByDevice.remove(deviceKey);
+        if (!hasActiveDriveAwareRecheck(state, deviceKey))
             startNextDriveAwareRecheck(session, state, deviceKey);
-        }
 
         cleanupDriveAwareRecheckState(session);
     }
@@ -279,12 +318,30 @@ qbt_replace_exact(torrent_impl
             return;
 
         DriveAwareRecheckState &state = stateIt.value();
-        const auto scheduledIt = state.scheduledDevices.find(torrent);
-        if (scheduledIt == state.scheduledDevices.end())
-            return;
+        QString deviceKey;
+        bool wasActive = false;
 
-        const QString deviceKey = scheduledIt.value();
-        state.scheduledDevices.erase(scheduledIt);
+        const auto activeIt = state.activeDevices.find(torrent);
+        if (activeIt != state.activeDevices.end())
+        {
+            deviceKey = activeIt.value();
+            state.activeDevices.erase(activeIt);
+            wasActive = true;
+        }
+
+        const auto scheduledIt = state.scheduledDevices.find(torrent);
+        if (scheduledIt != state.scheduledDevices.end())
+        {
+            if (deviceKey.isEmpty())
+                deviceKey = scheduledIt.value();
+            state.scheduledDevices.erase(scheduledIt);
+        }
+        else if (!wasActive)
+        {
+            return;
+        }
+
+        state.activeScheduled.remove(torrent);
         state.dispatching.remove(torrent);
 
         auto queueIt = state.pendingByDevice.find(deviceKey);
@@ -302,11 +359,11 @@ qbt_replace_exact(torrent_impl
                 state.pendingByDevice.erase(queueIt);
         }
 
-        if (state.activeByDevice.value(deviceKey).data() == torrent)
-        {
-            state.activeByDevice.remove(deviceKey);
-            startNextDriveAwareRecheck(session, state, deviceKey);
-        }
+        // torrentAboutToBeRemoved is emitted before libtorrent receives the
+        // removal. Defer the replacement so two checks on this device cannot
+        // overlap when the user's configured global limit is greater than one.
+        if (wasActive && !hasActiveDriveAwareRecheck(state, deviceKey))
+            deferNextDriveAwareRecheck(session, deviceKey);
 
         cleanupDriveAwareRecheckState(session);
     }
