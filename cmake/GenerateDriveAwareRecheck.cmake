@@ -321,8 +321,7 @@ qbt_replace_exact(torrent_impl
     if (!hasMetadata())
         return;
 
-    m_nativeHandle.force_recheck();
-}]=]
+    m_nativeHandle.force_recheck();]=]
 [=[void TorrentImpl::forceRecheck()
 {
     if (!hasMetadata())
@@ -331,14 +330,13 @@ qbt_replace_exact(torrent_impl
     // The scheduler calls back through this method to keep the public Torrent
     // interface as the single dispatch path. Only that marked re-entry reaches
     // libtorrent directly; external requests are grouped by physical storage.
-    if (consumeDriveAwareRecheckDispatch(this))
+    if (!consumeDriveAwareRecheckDispatch(this))
     {
-        m_nativeHandle.force_recheck();
+        scheduleDriveAwareRecheck(this);
         return;
     }
 
-    scheduleDriveAwareRecheck(this);
-}]=]
+    m_nativeHandle.force_recheck();]=]
 "drive-aware force-recheck dispatch")
 
 file(WRITE "${QBT_TORRENTIMPL_OUTPUT}" "${torrent_impl}")
