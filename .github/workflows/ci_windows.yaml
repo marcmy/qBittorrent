@@ -252,7 +252,34 @@ jobs:
       - name: Prepare build artifacts
         run: |
           New-Item -ItemType Directory -Force -Path upload/qBittorrent, upload/cmake | Out-Null
-          Copy-Item build/qbittorrent.exe, build/qbittorrent.pdb, dist/windows/qt.conf -Destination upload/qBittorrent
+          Copy-Item build/qbittorrent.exe, dist/windows/qt.conf -Destination upload/qBittorrent
+
+          $pdb = Get-ChildItem -Path build -Filter qbittorrent.pdb -Recurse -File | Select-Object -First 1
+          if ($pdb)
+          {
+            Copy-Item $pdb.FullName -Destination upload/qBittorrent
+          }
+          else
+          {
+            Write-Warning "qbittorrent.pdb was not produced; continuing without debug symbols"
+          }
+
+          $windeployqt = Join-Path "${{ env.Qt_ROOT_DIR }}" "bin/windeployqt.exe"
+          if (!(Test-Path $windeployqt))
+          {
+            throw "windeployqt.exe was not found at $windeployqt"
+          }
+
+          & $windeployqt `
+            --release `
+            --no-translations `
+            --no-compiler-runtime `
+            --dir upload/qBittorrent `
+            build/qbittorrent.exe
+          if ($LASTEXITCODE -ne 0)
+          {
+            throw "windeployqt failed with exit code $LASTEXITCODE"
+          }
 
           @(
             "qBittorrent repository: ${{ github.repository }}",
@@ -267,30 +294,6 @@ jobs:
             "Boost: 1.91.0",
             "WebTorrent: enabled"
           ) | Set-Content -Path upload/qBittorrent/build-info.txt
-
-          $qtDlls = @("Core", "Gui", "Network", "Sql", "Svg", "Widgets", "Xml")
-          foreach ($dll in $qtDlls)
-          {
-            Copy-Item "${{ env.Qt_ROOT_DIR }}/bin/Qt6$dll.dll" -Destination upload/qBittorrent
-          }
-
-          $plugins = @{
-            "iconengines" = @("qsvgicon.dll")
-            "imageformats" = @("qgif.dll", "qicns.dll", "qico.dll", "qjpeg.dll", "qsvg.dll", "qtga.dll", "qtiff.dll", "qwbmp.dll", "qwebp.dll")
-            "platforms" = @("qwindows.dll")
-            "sqldrivers" = @("qsqlite.dll")
-            "styles" = @("qmodernwindowsstyle.dll")
-            "tls" = @("qschannelbackend.dll")
-          }
-          foreach ($pluginDir in $plugins.Keys)
-          {
-            $destination = "upload/qBittorrent/plugins/$pluginDir"
-            New-Item -ItemType Directory -Force -Path $destination | Out-Null
-            foreach ($plugin in $plugins[$pluginDir])
-            {
-              Copy-Item "${{ env.Qt_ROOT_DIR }}/plugins/$pluginDir/$plugin" -Destination $destination
-            }
-          }
 
           Copy-Item build/compile_commands.json, build/target_graph.dot -Destination upload/cmake
           if (Test-Path "${{ env.libtorrent_path }}/build/compile_commands.json")
