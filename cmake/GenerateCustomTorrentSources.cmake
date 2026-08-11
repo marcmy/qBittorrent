@@ -255,32 +255,10 @@ qbt_replace_exact(torrent_impl
 set(new_collision_implementation
 [=[bool TorrentImpl::preventPathCollision()
 {
-    if (!hasMetadata() || isStopped() || isChecking() || isFinished() || (progress() >= 1.0) || (wantedSize() <= 0))
-        return false;
-
-    const QString currentSignature = sharedPathSignature(this);
-    if (!m_sharedContentPathSignature.isEmpty())
-    {
-        if (m_sharedContentPathSignature == currentSignature)
-            return false;
-
-        m_sharedContentPathSignature.clear();
-        deferredRequestResumeData();
-    }
-
-    const PathCollisionInfo collisionInfo = findPathCollisions(this);
-    if (collisionInfo.conflictingTorrents.isEmpty())
-        return false;
-
-#ifdef DISABLE_GUI
-    resolvePathCollision(Torrent::PathCollisionResolution::CreateProtectedCopy);
-#else
-    stop();
-    LogMsg(tr("Stopped torrent pending a shared-content decision. Torrent: \"%1\". Conflicting torrents: %2")
-            .arg(name(), collisionInfo.conflictingTorrents.join(u", "_s)), Log::WARNING);
-    emit pathCollisionDetected(collisionInfo.conflictingTorrents);
-#endif
-    return true;
+    // Keep persisted profiles interchangeable with upstream/nightly qBittorrent.
+    // The previous interceptor could reinterpret legitimate shared/cross-seeded
+    // paths on startup and rewrite their file mappings to [qB-...] locations.
+    return false;
 }
 
 void TorrentImpl::resolvePathCollision(const Torrent::PathCollisionResolution resolution)
