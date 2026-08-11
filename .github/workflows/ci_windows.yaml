@@ -222,7 +222,7 @@ jobs:
 
       - name: Build qBittorrent
         run: |
-          $env:CXXFLAGS+="/DQT_FORCE_ASSERTS /WX"
+          $env:CXXFLAGS+=" /DQT_FORCE_ASSERTS /WX"
           cmake `
             -B build `
             -G "Ninja" `
@@ -240,9 +240,22 @@ jobs:
             -DVCPKG_TARGET_TRIPLET=${{ env.vcpkg_triplet }} `
             -DVERBOSE_CONFIGURE=ON `
             --graphviz=build/target_graph.dot
-          cmake --build build --target qbt_update_translations --parallel
+          if ($LASTEXITCODE -ne 0)
+          {
+            throw "qBittorrent configuration failed with exit code $LASTEXITCODE"
+          }
+
           cmake --build build --parallel
+          if ($LASTEXITCODE -ne 0)
+          {
+            throw "qBittorrent build failed with exit code $LASTEXITCODE"
+          }
+
           cmake --build build --target check --parallel
+          if ($LASTEXITCODE -ne 0)
+          {
+            throw "qBittorrent tests failed with exit code $LASTEXITCODE"
+          }
 
       - name: Show sccache stats
         if: always()
