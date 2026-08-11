@@ -165,7 +165,7 @@ qbt_replace_exact(torrent_impl
                 , [](Torrent *torrent) { finishDriveAwareRecheck(torrent); });
         state.removedConnection = QObject::connect(session, &Session::torrentAboutToBeRemoved, session
                 , [](Torrent *torrent) { removeDriveAwareRecheck(torrent); });
-        state.destroyedConnection = QObject::connect(session, &QObject::destroyed
+        state.destroyedConnection = QObject::connect(session, &QObject::destroyed, session
                 , [session] { driveAwareRecheckStates.remove(session); });
         trackExistingDriveAwareRechecks(session, state);
     }
