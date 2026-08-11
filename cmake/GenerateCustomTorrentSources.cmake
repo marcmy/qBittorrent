@@ -47,12 +47,101 @@ endfunction()
 file(READ "${QBT_TORRENTIMPL_INPUT}" torrent_impl)
 
 qbt_replace_exact(torrent_impl
+[=[#include <algorithm>
+#include <memory>]=]
+[=[#include <algorithm>
+#include <map>
+#include <memory>]=]
+"std::map include for force-recheck snapshots")
+
+qbt_replace_exact(torrent_impl
 [=[#include <QByteArray>
 #include <QCache>]=]
 [=[#include <QByteArray>
 #include <QCache>
 #include <QCryptographicHash>]=]
 "QCryptographicHash include")
+
+qbt_replace_exact(torrent_impl
+[=[using namespace BitTorrent;
+
+namespace
+{]=]
+[=[using namespace BitTorrent;
+
+namespace
+{
+    struct ForceRecheckSnapshot
+    {
+        lt::add_torrent_params resumeData;
+        lt::queue_position_t queuePosition;
+    };
+
+    std::map<const TorrentImpl *, ForceRecheckSnapshot> forceRecheckSnapshots;]=]
+"force-recheck snapshot storage")
+
+qbt_replace_exact(torrent_impl
+[=[TorrentImpl::~TorrentImpl() = default;]=]
+[=[TorrentImpl::~TorrentImpl()
+{
+    forceRecheckSnapshots.erase(this);
+}]=]
+"force-recheck snapshot cleanup on destruction")
+
+qbt_replace_exact(torrent_impl
+[=[void TorrentImpl::forceRecheck()
+{
+    if (!hasMetadata())
+        return;
+
+    m_nativeHandle.force_recheck();]=]
+[=[void TorrentImpl::forceRecheck()
+{
+    if (!hasMetadata())
+        return;
+
+    if (const auto snapshotIter = forceRecheckSnapshots.find(this); snapshotIter != forceRecheckSnapshots.end())
+    {
+        auto snapshot = std::move(snapshotIter->second);
+        forceRecheckSnapshots.erase(snapshotIter);
+
+        m_ltAddTorrentParams = std::move(snapshot.resumeData);
+        reload();
+
+        if (snapshot.queuePosition >= lt::queue_position_t {})
+            m_nativeHandle.queue_position_set(snapshot.queuePosition);
+        m_nativeStatus.queue_position = snapshot.queuePosition;
+
+        deferredRequestResumeData();
+        LogMsg(tr("Canceled force recheck and restored the torrent's previous state. Torrent: \"%1\"").arg(name()));
+        return;
+    }
+
+    if ((m_nativeStatus.state == lt::torrent_status::checking_resume_data)
+            || (m_nativeStatus.state == lt::torrent_status::checking_files))
+    {
+        return;
+    }
+
+    forceRecheckSnapshots.emplace(this, ForceRecheckSnapshot
+    {
+        m_nativeHandle.get_resume_data(),
+        m_nativeHandle.queue_position()
+    });
+
+    m_nativeHandle.force_recheck();]=]
+"cancelable force-recheck implementation")
+
+qbt_replace_exact(torrent_impl
+[=[void TorrentImpl::handleTorrentChecked()
+{
+    if (!hasMetadata())]=]
+[=[void TorrentImpl::handleTorrentChecked()
+{
+    forceRecheckSnapshots.erase(this);
+
+    if (!hasMetadata())]=]
+"force-recheck snapshot cleanup after completion")
 
 qbt_replace_exact(torrent_impl
 [=[    PathList makeCollisionSafeFilePaths(const PathList &filePaths, const QString &suffix)
