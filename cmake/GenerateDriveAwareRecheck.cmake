@@ -161,7 +161,7 @@ qbt_replace_exact(torrent_impl
         if (stateIt == driveAwareRecheckStates.end())
             return false;
 
-        return stateIt->dispatching.remove(torrent) > 0;
+        return stateIt->dispatching.remove(torrent);
     }
 
     void dispatchDriveAwareRecheck(Torrent *torrent)
