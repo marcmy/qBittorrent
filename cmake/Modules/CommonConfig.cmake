@@ -90,6 +90,12 @@ if (MSVC)
         # https://devblogs.microsoft.com/cppblog/msvc-now-correctly-reports-__cplusplus/
         /Zc:__cplusplus
     )
+    # Qt's imported targets can append /Zi after CMake's debug-information
+    # option. Reassert /Z7 last when embedded debug information was explicitly
+    # requested so parallel builds do not share a compiler PDB.
+    if (CMAKE_MSVC_DEBUG_INFORMATION_FORMAT STREQUAL "Embedded")
+        target_compile_options(qbt_common_cfg INTERFACE /Z7)
+    endif()
     target_link_options(qbt_common_cfg INTERFACE
         /GUARD:CF
         $<$<NOT:$<CONFIG:Debug>>:/OPT:REF /OPT:ICF>
