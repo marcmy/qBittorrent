@@ -266,7 +266,6 @@ namespace BitTorrent
         void setEncryption(int state) override;
         int maxActiveCheckingTorrents() const override;
         void setMaxActiveCheckingTorrents(int val) override;
-        void setMaxActiveCheckingTorrentsRuntimeMinimum(std::optional<int> val) override;
         bool isI2PEnabled() const override;
         void setI2PEnabled(bool enabled) override;
         QString I2PAddress() const override;
@@ -771,7 +770,6 @@ namespace BitTorrent
         CachedSettingValue<QString> m_networkInterfaceAddress;
         CachedSettingValue<int> m_encryption;
         CachedSettingValue<int> m_maxActiveCheckingTorrents;
-        std::optional<int> m_maxActiveCheckingTorrentsRuntimeMinimum;
         CachedSettingValue<bool> m_isProxyPeerConnectionsEnabled;
         CachedSettingValue<ChokingAlgorithm> m_chokingAlgorithm;
         CachedSettingValue<SeedChokingAlgorithm> m_seedChokingAlgorithm;
