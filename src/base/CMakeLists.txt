@@ -1,21 +1,3 @@
-set(QBT_GENERATED_BITTORRENT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/bittorrent")
-set(QBT_TORRENTIMPL_INPUT "${CMAKE_CURRENT_SOURCE_DIR}/bittorrent/torrentimpl.cpp")
-set(QBT_TORRENTIMPL_OUTPUT "${QBT_GENERATED_BITTORRENT_DIR}/torrentimpl.cpp")
-set(QBT_DBRESUMEDATA_INPUT "${CMAKE_CURRENT_SOURCE_DIR}/bittorrent/dbresumedatastorage.cpp")
-set(QBT_DBRESUMEDATA_OUTPUT "${QBT_GENERATED_BITTORRENT_DIR}/dbresumedatastorage.cpp")
-set(QBT_CUSTOM_TORRENT_SOURCE_GENERATOR "${qBittorrent_SOURCE_DIR}/cmake/GenerateCustomTorrentSources.cmake")
-set(QBT_CUSTOM_TORRENT_SOURCE_BASE_GENERATOR "${qBittorrent_SOURCE_DIR}/cmake/GenerateCustomTorrentSourcesBase.cmake")
-set(QBT_DRIVE_AWARE_RECHECK_GENERATOR "${qBittorrent_SOURCE_DIR}/cmake/GenerateDriveAwareRecheck.cmake")
-
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-    "${QBT_TORRENTIMPL_INPUT}"
-    "${QBT_DBRESUMEDATA_INPUT}"
-    "${QBT_CUSTOM_TORRENT_SOURCE_GENERATOR}"
-    "${QBT_CUSTOM_TORRENT_SOURCE_BASE_GENERATOR}"
-    "${QBT_DRIVE_AWARE_RECHECK_GENERATOR}"
-)
-include("${QBT_CUSTOM_TORRENT_SOURCE_GENERATOR}")
-
 add_library(qbt_base STATIC
     # headers
     3rdparty/expected.hpp
@@ -158,7 +140,7 @@ add_library(qbt_base STATIC
     bittorrent/bencoderesumedatastorage.cpp
     bittorrent/categoryoptions.cpp
     bittorrent/customstorage.cpp
-    ${QBT_DBRESUMEDATA_OUTPUT}
+    bittorrent/dbresumedatastorage.cpp
     bittorrent/downloadpathoption.cpp
     bittorrent/downloadpriority.cpp
     bittorrent/filesearcher.cpp
@@ -181,7 +163,7 @@ add_library(qbt_base STATIC
     bittorrent/torrentcreationtask.cpp
     bittorrent/torrentcreator.cpp
     bittorrent/torrentdescriptor.cpp
-    ${QBT_TORRENTIMPL_OUTPUT}
+    bittorrent/torrentimpl.cpp
     bittorrent/torrentinfo.cpp
     bittorrent/tracker.cpp
     bittorrent/trackerentry.cpp
@@ -244,10 +226,6 @@ add_library(qbt_base STATIC
     utils/string.cpp
     utils/thread.cpp
     utils/version.cpp
-)
-
-target_include_directories(qbt_base PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/bittorrent"
 )
 
 target_link_libraries(qbt_base

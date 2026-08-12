@@ -1987,11 +1987,7 @@ lt::settings_pack SessionImpl::loadLTSettings() const
         settingsPack.set_int(lt::settings_pack::in_enc_policy, lt::settings_pack::pe_disabled);
     }
 
-    const int configuredActiveChecking = maxActiveCheckingTorrents();
-    const int effectiveActiveChecking = (m_maxActiveCheckingTorrentsRuntimeMinimum && (configuredActiveChecking >= 0))
-            ? std::max(configuredActiveChecking, *m_maxActiveCheckingTorrentsRuntimeMinimum)
-            : configuredActiveChecking;
-    settingsPack.set_int(lt::settings_pack::active_checking, effectiveActiveChecking);
+    settingsPack.set_int(lt::settings_pack::active_checking, maxActiveCheckingTorrents());
 
     // I2P
 #if defined(QBT_USES_LIBTORRENT2) && TORRENT_USE_I2P
@@ -3917,16 +3913,6 @@ void SessionImpl::setMaxActiveCheckingTorrents(const int val)
         return;
 
     m_maxActiveCheckingTorrents = val;
-    configureDeferred();
-}
-
-void SessionImpl::setMaxActiveCheckingTorrentsRuntimeMinimum(const std::optional<int> val)
-{
-    Q_ASSERT(!val || (*val >= 0));
-    if (val == m_maxActiveCheckingTorrentsRuntimeMinimum)
-        return;
-
-    m_maxActiveCheckingTorrentsRuntimeMinimum = val;
     configureDeferred();
 }
 

@@ -29,8 +29,6 @@
 
 #pragma once
 
-#include <optional>
-
 #include <libtorrent/version.hpp>
 
 #include <QtContainerFwd>
@@ -291,7 +289,6 @@ namespace BitTorrent
         virtual void setEncryption(int state) = 0;
         virtual int maxActiveCheckingTorrents() const = 0;
         virtual void setMaxActiveCheckingTorrents(int val) = 0;
-        virtual void setMaxActiveCheckingTorrentsRuntimeMinimum(std::optional<int> val) = 0;
         virtual bool isI2PEnabled() const = 0;
         virtual void setI2PEnabled(bool enabled) = 0;
         virtual QString I2PAddress() const = 0;
