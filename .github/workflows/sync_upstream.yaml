@@ -9,6 +9,7 @@ on:
   repository_dispatch:
     types:
       - libtorrent-upstream-synced
+      - libtorrent-pr-build
   workflow_dispatch:
   schedule:
     - cron: '17 */6 * * *'
@@ -22,6 +23,7 @@ concurrency:
 jobs:
   sync:
     name: Merge qBittorrent master
+    if: github.event_name != 'repository_dispatch' || github.event.action == 'libtorrent-upstream-synced'
     runs-on: ubuntu-latest
 
     permissions:
@@ -133,4 +135,53 @@ jobs:
             echo "- qBittorrent custom head: $QBITTORRENT_HEAD"
             echo "- libtorrent changed: $LIBTORRENT_CHANGED"
             echo "- libtorrent ref: $LIBTORRENT_HEAD"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build-libtorrent-pr:
+    name: Build qBittorrent against libtorrent PR
+    if: github.event_name == 'repository_dispatch' && github.event.action == 'libtorrent-pr-build'
+    runs-on: ubuntu-latest
+
+    permissions:
+      actions: write
+
+    steps:
+      - name: Validate libtorrent PR revision
+        shell: bash
+        env:
+          LIBTORRENT_REF: ${{ github.event.client_payload.libtorrent_sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$LIBTORRENT_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Expected a 40-character libtorrent commit SHA, got: $LIBTORRENT_REF"
+            exit 1
+          fi
+
+      - name: Start Windows build against libtorrent PR
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          LIBTORRENT_REF: ${{ github.event.client_payload.libtorrent_sha }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'ci_windows.yaml',
+              ref: 'custom/master',
+              inputs: {
+                libtorrent_ref: process.env.LIBTORRENT_REF,
+                qbittorrent_ref: 'custom/master'
+              }
+            });
+
+      - name: Summarize PR build chain
+        env:
+          LIBTORRENT_HEAD: ${{ github.event.client_payload.libtorrent_sha }}
+        run: |
+          {
+            echo "## libtorrent PR validation"
+            echo "- qBittorrent ref: custom/master"
+            echo "- libtorrent ref: $LIBTORRENT_HEAD"
+            echo "- upstream sync: skipped"
           } >> "$GITHUB_STEP_SUMMARY"
