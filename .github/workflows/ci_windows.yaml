@@ -41,6 +41,7 @@ jobs:
 
     env:
       boost_path: "${{ github.workspace }}/.ci-cache/boost"
+      libtorrent_install_path: "${{ github.workspace }}/.ci-cache/libtorrent-install"
       libtorrent_path: "${{ github.workspace }}/../libtorrent"
       vcpkg_binary_cache: "${{ github.workspace }}/.ci-cache/vcpkg-binary-cache"
       vcpkg_path: "c:/vcpkg"
@@ -192,7 +193,7 @@ jobs:
         id: libtorrent-cache
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: ${{ env.libtorrent_path }}/install
+          path: ${{ env.libtorrent_install_path }}
           key: libtorrent-windows-msvc-${{ env.vcpkg_triplet }}-boost1.91-webtorrent-${{ steps.libtorrent-revision.outputs.sha }}
 
       - name: Build and install custom libtorrent
@@ -210,7 +211,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
             -DCMAKE_CXX_STANDARD=20 `
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON `
-            -DCMAKE_INSTALL_PREFIX="${{ env.libtorrent_path }}/install" `
+            -DCMAKE_INSTALL_PREFIX="${{ env.libtorrent_install_path }}" `
             -DCMAKE_TOOLCHAIN_FILE="${{ env.vcpkg_path }}/scripts/buildsystems/vcpkg.cmake" `
             -DCMAKE_C_COMPILER_LAUNCHER=sccache `
             -DCMAKE_CXX_COMPILER_LAUNCHER=sccache `
@@ -239,7 +240,7 @@ jobs:
             -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded `
             -DCMAKE_POLICY_DEFAULT_CMP0141=NEW `
             -DBOOST_ROOT="${{ env.boost_path }}/lib/cmake" `
-            -DLibtorrentRasterbar_DIR="${{ env.libtorrent_path }}/install/lib/cmake/LibtorrentRasterbar" `
+            -DLibtorrentRasterbar_DIR="${{ env.libtorrent_install_path }}/lib/cmake/LibtorrentRasterbar" `
             -DMSVC_RUNTIME_DYNAMIC=ON `
             -DTESTING=ON `
             -DVCPKG_TARGET_TRIPLET=${{ env.vcpkg_triplet }} `
