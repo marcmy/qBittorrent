@@ -40,9 +40,9 @@ jobs:
       qbittorrent_sha: ${{ steps.qbittorrent-revision.outputs.sha }}
 
     env:
-      boost_path: "${{ runner.temp }}/boost"
+      boost_path: "${{ github.workspace }}/.ci-cache/boost"
       libtorrent_path: "${{ github.workspace }}/../libtorrent"
-      vcpkg_binary_cache: "${{ runner.temp }}/vcpkg-binary-cache"
+      vcpkg_binary_cache: "${{ github.workspace }}/.ci-cache/vcpkg-binary-cache"
       vcpkg_path: "c:/vcpkg"
       target_arch: "x64"
       vcpkg_triplet: "x64-windows-static-md-release"
