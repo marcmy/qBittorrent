@@ -35,13 +35,14 @@ jobs:
     name: Build (marcmy/libtorrent ${{ inputs.libtorrent_ref || 'custom/qbittorrent-2.1' }}, x64)
     runs-on: windows-latest
     permissions:
-      actions: write # required for vcpkg and sccache GitHub Actions cache writes
+      actions: write # required for sccache and workflow cache writes
     outputs:
       qbittorrent_sha: ${{ steps.qbittorrent-revision.outputs.sha }}
 
     env:
-      boost_path: "${{ github.workspace }}/../boost"
+      boost_path: "${{ runner.temp }}/boost"
       libtorrent_path: "${{ github.workspace }}/../libtorrent"
+      vcpkg_binary_cache: "${{ runner.temp }}/vcpkg-binary-cache"
       vcpkg_path: "c:/vcpkg"
       target_arch: "x64"
       vcpkg_triplet: "x64-windows-static-md-release"
@@ -81,21 +82,28 @@ jobs:
           where.exe ninja
           ninja --version
 
-      # https://learn.microsoft.com/en-us/vcpkg/users/binarycaching#gha
-      - name: Set variables for GitHub Actions caches
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
-        with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', (process.env.ACTIONS_CACHE_URL || ''));
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', (process.env.ACTIONS_RUNTIME_TOKEN || ''));
-
       - name: Install sccache
         uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad # v0.0.9
         with:
           version: "v0.17.0"
 
+      - name: Record vcpkg revision
+        id: vcpkg-revision
+        run: |
+          $sha = git -C "${{ env.vcpkg_path }}" rev-parse HEAD
+          "sha=$sha" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Cache vcpkg binaries
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ env.vcpkg_binary_cache }}
+          key: vcpkg-binaries-${{ runner.os }}-${{ env.vcpkg_triplet }}-${{ steps.vcpkg-revision.outputs.sha }}
+          restore-keys: |
+            vcpkg-binaries-${{ runner.os }}-${{ env.vcpkg_triplet }}-
+
       - name: Install dependencies with vcpkg
         run: |
+          New-Item -ItemType Directory -Force -Path "${{ env.vcpkg_binary_cache }}" | Out-Null
           New-Item `
             -Force `
             -ItemType File `
@@ -110,11 +118,8 @@ jobs:
             "boost-build:${{ env.vcpkg_triplet }}",
             "openssl:${{ env.vcpkg_triplet }}",
             "zlib:${{ env.vcpkg_triplet }}"
-          ${{ env.vcpkg_path }}/vcpkg.exe upgrade `
-            --no-dry-run `
-            --overlay-triplets="${{ env.vcpkg_path }}/triplets_overlay"
           ${{ env.vcpkg_path }}/vcpkg.exe install `
-            --binarysource="clear;x-gha,readwrite" `
+            --binarysource="clear;files,${{ env.vcpkg_binary_cache }},readwrite" `
             --clean-after-build `
             --overlay-triplets="${{ env.vcpkg_path }}/triplets_overlay" `
             $packages
