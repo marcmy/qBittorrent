@@ -28,7 +28,7 @@ permissions: {}
 
 concurrency:
   group: ci-windows-${{ inputs.qbittorrent_ref || github.ref }}-${{ inputs.libtorrent_ref || 'custom/qbittorrent-2.1' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
   ci:
@@ -334,6 +334,18 @@ jobs:
       - name: Create installer
         run: |
           7z x -o"dist/windows/" "dist/windows/NSISPlugins.zip"
+
+          # Release packaging favors maximum compression, but CI installers are
+          # transient validation artifacts. Use fast zlib compression here only.
+          $nsisConfig = "dist/windows/config.nsh"
+          $originalConfig = Get-Content $nsisConfig -Raw
+          $fastConfig = $originalConfig -replace '(?m)^SetCompressor /SOLID LZMA\r?\nSetCompressorDictSize 64\r?$', 'SetCompressor zlib'
+          if ($fastConfig -eq $originalConfig)
+          {
+            throw "Failed to switch the CI installer to fast NSIS compression"
+          }
+          Set-Content -Path $nsisConfig -Value $fastConfig -NoNewline
+
           makensis `
             /DQBT_CPU_ARCH="${{ env.target_arch }}" `
             /DQBT_DIST_DIR="../../upload/qBittorrent" `
