@@ -26,7 +26,7 @@ diff --git a/src/base/bittorrent/torrentimpl.cpp b/src/base/bittorrent/torrentim
 index 4400f3bd7..000000000 100644
 --- a/src/base/bittorrent/torrentimpl.cpp
 +++ b/src/base/bittorrent/torrentimpl.cpp
-@@ -34,6 +34,7 @@
+@@ -31,6 +31,7 @@
  
  #include <algorithm>
  #include <memory>
@@ -34,8 +34,8 @@ index 4400f3bd7..000000000 100644
  
  #ifdef Q_OS_WIN
  #include <windows.h>
-@@ -1170,6 +1171,24 @@ void TorrentImpl::forceRecheck()
-     m_nativeHandle.force_recheck();
+@@ -1745,6 +1746,24 @@ void TorrentImpl::forceRecheck()
+     }
  }
  
 +void TorrentImpl::recheckFiles(const QList<int> &indexes)
@@ -58,22 +58,21 @@ index 4400f3bd7..000000000 100644
 +        m_nativeHandle.recheck_files(std::move(nativeIndexes));
 +}
 +
- void TorrentImpl::setUploadLimit(const int limit)
+ void TorrentImpl::setSequentialDownload(const bool enable)
  {
-     m_downloadLimit = cleanLimitValue(limit);
+     if (enable)
 diff --git a/src/gui/torrentcontentwidget.cpp b/src/gui/torrentcontentwidget.cpp
-index 000000000..000000000 100644
+index 189741c7c..000000000 100644
 --- a/src/gui/torrentcontentwidget.cpp
 +++ b/src/gui/torrentcontentwidget.cpp
 @@ -42,6 +42,7 @@
  #include <QWheelEvent>
  
- #include "base/bittorrent/torrentcontenthandler.h"
 +#include "base/bittorrent/torrent.h"
+ #include "base/bittorrent/torrentcontenthandler.h"
  #include "base/path.h"
  #include "base/utils/string.h"
- #include "autoexpandabledialog.h"
-@@ -318,6 +319,22 @@ void TorrentContentWidget::displayContextMenu()
+@@ -446,6 +447,22 @@ void TorrentContentWidget::displayContextMenu()
      menu->addAction(UIThemeManager::instance()->getIcon(u"edit-rename"_s), tr("Batch rename...")
              , this, &TorrentContentWidget::batchRenameFiles);
      menu->addSeparator();
@@ -94,4 +93,4 @@ index 000000000..000000000 100644
 +    }
  
      QMenu *subMenu = menu->addMenu(tr("Priority"));
-     subMenu->addAction(tr("Do not download"), this, [this]()
+     subMenu->addAction(tr("Do not download"), this, [this]
