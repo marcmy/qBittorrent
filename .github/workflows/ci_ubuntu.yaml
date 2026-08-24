@@ -1,5 +1,4 @@
-name: CI - Ubuntu (disabled)
-
+name: CI - Ubuntu
 on: workflow_dispatch
 
 permissions: {}
