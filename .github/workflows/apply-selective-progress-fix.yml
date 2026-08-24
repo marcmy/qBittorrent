@@ -1,17 +1,19 @@
 name: Apply selective progress fix
 
 on:
-  push:
-    branches:
-      - custom/master
-    paths:
-      - .github/selective-progress-fix-trigger
+  pull_request_target:
+    types:
+      - synchronize
 
 permissions:
   contents: write
 
 jobs:
   apply:
+    if: >-
+      github.event.pull_request.number == 24 &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feature/selective-file-recheck'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
