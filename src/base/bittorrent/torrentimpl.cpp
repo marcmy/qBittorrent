@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <vector>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -1745,6 +1746,26 @@ void TorrentImpl::forceRecheck()
         start();
         m_stopCondition = StopCondition::FilesChecked;
     }
+}
+
+void TorrentImpl::recheckFiles(const QList<int> &indexes)
+{
+    if (!hasMetadata() || indexes.isEmpty())
+        return;
+
+    std::vector<lt::file_index_t> nativeIndexes;
+    nativeIndexes.reserve(static_cast<std::size_t>(indexes.size()));
+
+    for (const int index : indexes)
+    {
+        if ((index < 0) || (index >= filesCount()))
+            continue;
+
+        nativeIndexes.push_back(m_torrentInfo.nativeIndexes().at(index));
+    }
+
+    if (!nativeIndexes.empty())
+        m_nativeHandle.recheck_files(std::move(nativeIndexes));
 }
 
 void TorrentImpl::setSequentialDownload(const bool enable)

@@ -42,6 +42,7 @@
 #include <QShortcut>
 #include <QWheelEvent>
 
+#include "base/bittorrent/torrent.h"
 #include "base/bittorrent/torrentcontenthandler.h"
 #include "base/path.h"
 #include "base/utils/string.h"
@@ -449,6 +450,20 @@ void TorrentContentWidget::displayContextMenu()
     menu->addAction(UIThemeManager::instance()->getIcon(u"edit-rename"_s), tr("Batch rename...")
             , this, &TorrentContentWidget::batchRenameFiles);
     menu->addSeparator();
+    if (auto *torrent = qobject_cast<BitTorrent::Torrent *>(contentHandler()))
+    {
+        menu->addAction(tr("Recheck selected files"), this, [this, torrent]
+        {
+            QSet<int> fileIndexes;
+            const QModelIndexList rows = selectionModel()->selectedRows(0);
+            for (const QModelIndex &row : rows)
+                fileIndexes.unite(m_filterModel->getFileIndexes(row));
+
+            if (!fileIndexes.isEmpty())
+                torrent->recheckFiles(fileIndexes.values());
+        });
+        menu->addSeparator();
+    }
 
     QMenu *subMenu = menu->addMenu(tr("Priority"));
     subMenu->addAction(tr("Do not download"), this, [this]
