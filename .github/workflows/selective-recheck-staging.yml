@@ -1,0 +1,113 @@
+name: Selective recheck staging helper
+
+on:
+  pull_request_target:
+    branches:
+      - custom/master
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.head.ref == 'feature/selective-file-recheck' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/selective-file-recheck
+          fetch-depth: 0
+      - name: Apply exact source edits
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(f"{path}: expected exactly one match, found {count}")
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              "src/base/bittorrent/torrent.h",
+              "        virtual void forceDHTAnnounce() = 0;\n        virtual void forceRecheck() = 0;\n        virtual void setUploadLimit(int limit) = 0;",
+              "        virtual void forceDHTAnnounce() = 0;\n        virtual void forceRecheck() = 0;\n        virtual void recheckFiles(const QList<int> &indexes) = 0;\n        virtual void setUploadLimit(int limit) = 0;"
+          )
+
+          replace_once(
+              "src/base/bittorrent/torrentimpl.h",
+              "        void forceDHTAnnounce() override;\n        void forceRecheck() override;\n        void renameFile(int index, const Path &path) override;",
+              "        void forceDHTAnnounce() override;\n        void forceRecheck() override;\n        void recheckFiles(const QList<int> &indexes) override;\n        void renameFile(int index, const Path &path) override;"
+          )
+
+          replace_once(
+              "src/base/bittorrent/torrentimpl.cpp",
+              "#include <algorithm>\n#include <memory>\n",
+              "#include <algorithm>\n#include <memory>\n#include <vector>\n"
+          )
+
+          implementation = r'''
+void TorrentImpl::recheckFiles(const QList<int> &indexes)
+{
+    if (!hasMetadata() || indexes.isEmpty())
+        return;
+
+    std::vector<lt::file_index_t> nativeIndexes;
+    nativeIndexes.reserve(static_cast<std::size_t>(indexes.size()));
+
+    for (const int index : indexes)
+    {
+        if ((index < 0) || (index >= filesCount()))
+            continue;
+
+        nativeIndexes.push_back(m_torrentInfo.nativeIndexes().at(index));
+    }
+
+    if (!nativeIndexes.empty())
+        m_nativeHandle.recheck_files(std::move(nativeIndexes));
+}
+'''
+          replace_once(
+              "src/base/bittorrent/torrentimpl.cpp",
+              "\nvoid TorrentImpl::setSequentialDownload(const bool enable)\n",
+              "\n" + implementation + "\nvoid TorrentImpl::setSequentialDownload(const bool enable)\n"
+          )
+
+          replace_once(
+              "src/gui/torrentcontentwidget.cpp",
+              '#include "base/bittorrent/torrentcontenthandler.h"\n',
+              '#include "base/bittorrent/torrent.h"\n#include "base/bittorrent/torrentcontenthandler.h"\n'
+          )
+
+          menu = r'''
+    if (auto *torrent = qobject_cast<BitTorrent::Torrent *>(contentHandler()))
+    {
+        menu->addAction(tr("Recheck selected files"), this, [this, torrent]
+        {
+            QSet<int> fileIndexes;
+            const QModelIndexList rows = selectionModel()->selectedRows(0);
+            for (const QModelIndex &row : rows)
+                fileIndexes.unite(m_filterModel->getFileIndexes(row));
+
+            if (!fileIndexes.isEmpty())
+                torrent->recheckFiles(fileIndexes.values());
+        });
+        menu->addSeparator();
+    }
+'''
+          replace_once(
+              "src/gui/torrentcontentwidget.cpp",
+              '    menu->addAction(UIThemeManager::instance()->getIcon(u"edit-rename"_s), tr("Batch rename...")\n            , this, &TorrentContentWidget::batchRenameFiles);\n    menu->addSeparator();\n\n    QMenu *subMenu = menu->addMenu(tr("Priority"));',
+              '    menu->addAction(UIThemeManager::instance()->getIcon(u"edit-rename"_s), tr("Batch rename...")\n            , this, &TorrentContentWidget::batchRenameFiles);\n    menu->addSeparator();\n' + menu + '\n    QMenu *subMenu = menu->addMenu(tr("Priority"));'
+          )
+      - name: Commit source changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/base/bittorrent/torrent.h src/base/bittorrent/torrentimpl.h src/base/bittorrent/torrentimpl.cpp src/gui/torrentcontentwidget.cpp
+          git diff --cached --check
+          git commit -m "feat: recheck selected torrent files [skip ci]"
+          git push origin HEAD:feature/selective-file-recheck
