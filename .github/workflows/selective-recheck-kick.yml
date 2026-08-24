@@ -4,7 +4,7 @@ on:
   pull_request_target:
     branches:
       - custom/master
-    types: [opened]
+    types: [opened, reopened]
 
 permissions:
   contents: write
