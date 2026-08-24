@@ -1,0 +1,26 @@
+name: Dispatch selective recheck hotfix build
+
+on:
+  push:
+    branches:
+      - feature/selective-file-recheck
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch Windows build against libtorrent hotfix
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/actions/workflows/ci_windows.yaml/dispatches" \
+            -f ref=feature/selective-file-recheck \
+            -f 'inputs[libtorrent_ref]=fix/selective-recheck-crash' \
+            -f 'inputs[qbittorrent_ref]=feature/selective-file-recheck'
