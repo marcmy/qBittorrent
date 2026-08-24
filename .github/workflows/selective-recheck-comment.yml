@@ -1,0 +1,40 @@
+name: Selective recheck comment staging
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.issue.pull_request && github.event.issue.number == 24 && github.event.comment.body == '/apply-selective-progress-fix'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out helper from default branch
+        uses: actions/checkout@v4
+        with:
+          ref: custom/master
+          path: helper
+
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/selective-file-recheck
+          fetch-depth: 0
+          path: work
+
+      - name: Apply selective progress fix
+        working-directory: work
+        run: python ../helper/.github/selective_progress_fix.py
+
+      - name: Commit source changes
+        working-directory: work
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/base/bittorrent/torrentimpl.cpp
+          git diff --cached --check
+          git commit -m "fix: handle lost pieces in file progress cache"
+          git push origin HEAD:feature/selective-file-recheck
