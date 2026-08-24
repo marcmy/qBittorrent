@@ -1,8 +1,8 @@
-name: Selective hotfix build comment
+name: Selective hotfix build trigger
 
 on:
-  issue_comment:
-    types: [created]
+  pull_request_target:
+    types: [synchronize]
 
 permissions:
   actions: write
@@ -12,15 +12,15 @@ permissions:
 jobs:
   dispatch:
     if: >-
-      github.event.issue.pull_request &&
-      github.event.comment.body == '/build-selective-hotfix'
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feature/selective-file-recheck'
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch exact Windows hotfix build
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          ISSUE: ${{ github.event.issue.number }}
+          ISSUE: ${{ github.event.pull_request.number }}
         shell: bash
         run: |
           set -euo pipefail
