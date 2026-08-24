@@ -1,19 +1,20 @@
 name: Apply selective progress fix
 
 on:
-  pull_request_target:
+  issue_comment:
     types:
-      - synchronize
+      - created
 
 permissions:
   contents: write
+  pull-requests: read
 
 jobs:
   apply:
     if: >-
-      github.event.pull_request.number == 24 &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.head.ref == 'feature/selective-file-recheck'
+      github.event.issue.pull_request &&
+      github.event.issue.number == 24 &&
+      github.event.comment.body == '/apply-selective-progress-fix'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
