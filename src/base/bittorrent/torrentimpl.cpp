@@ -1748,10 +1748,15 @@ void TorrentImpl::forceRecheck()
     }
 }
 
-void TorrentImpl::recheckFiles(const QList<int> &indexes)
+void TorrentImpl::recheckFiles(const QList<int> &indexes
+        , std::function<void(int, int)> progress)
 {
     if (!hasMetadata() || indexes.isEmpty())
+    {
+        if (progress)
+            progress(0, 0);
         return;
+    }
 
     std::vector<lt::file_index_t> nativeIndexes;
     nativeIndexes.reserve(static_cast<std::size_t>(indexes.size()));
@@ -1764,8 +1769,20 @@ void TorrentImpl::recheckFiles(const QList<int> &indexes)
         nativeIndexes.push_back(m_torrentInfo.nativeIndexes().at(index));
     }
 
-    if (!nativeIndexes.empty())
-        m_nativeHandle.recheck_files(std::move(nativeIndexes));
+    if (nativeIndexes.empty())
+    {
+        if (progress)
+            progress(0, 0);
+        return;
+    }
+
+#ifdef TORRENT_HAS_RECHECK_FILES_PROGRESS_CALLBACK
+    m_nativeHandle.recheck_files(std::move(nativeIndexes), std::move(progress));
+#else
+    m_nativeHandle.recheck_files(std::move(nativeIndexes));
+    if (progress)
+        progress(0, 0);
+#endif
 }
 
 void TorrentImpl::setSequentialDownload(const bool enable)

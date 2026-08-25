@@ -1,146 +1,384 @@
 name: CI - Windows
 
 on:
+  pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "doc/**"
+      - "docs/**"
   push:
-    branches:
-      - feature/selective-file-recheck
+    paths-ignore:
+      - "**/*.md"
+      - "doc/**"
+      - "docs/**"
+  workflow_dispatch:
+    inputs:
+      libtorrent_ref:
+        description: libtorrent branch, tag, or commit to build
+        required: false
+        default: custom/qbittorrent-2.1
+        type: string
+      qbittorrent_ref:
+        description: qBittorrent branch, tag, or commit to build
+        required: false
+        default: custom/master
+        type: string
 
-permissions:
-  contents: write
+permissions: {}
+
+concurrency:
+  group: ci-windows-${{ inputs.qbittorrent_ref || github.ref }}-${{ inputs.libtorrent_ref || 'custom/qbittorrent-2.1' }}
+  cancel-in-progress: true
 
 jobs:
-  apply-progress-ui:
-    runs-on: ubuntu-latest
+  ci:
+    name: Build (marcmy/libtorrent ${{ inputs.libtorrent_ref || 'custom/qbittorrent-2.1' }}, x64)
+    runs-on: windows-latest
+    permissions:
+      actions: write # required for sccache and workflow cache writes
+    outputs:
+      qbittorrent_sha: ${{ steps.qbittorrent-revision.outputs.sha }}
+
+    env:
+      boost_path: "${{ github.workspace }}/.ci-cache/boost"
+      libtorrent_install_path: "${{ github.workspace }}/.ci-cache/libtorrent-install"
+      libtorrent_path: "${{ github.workspace }}/../libtorrent"
+      vcpkg_binary_cache: "${{ github.workspace }}/.ci-cache/vcpkg-binary-cache"
+      vcpkg_path: "c:/vcpkg"
+      target_arch: "x64"
+      vcpkg_triplet: "x64-windows-static-md-release"
+      qt_arch: "win64_msvc2022_64"
+      libtorrent_repository: "marcmy/libtorrent"
+      libtorrent_ref: "${{ inputs.libtorrent_ref || 'custom/qbittorrent-2.1' }}"
+      qbittorrent_ref: "${{ inputs.qbittorrent_ref || github.sha }}"
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
+
     steps:
       - name: Checkout qBittorrent
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          persist-credentials: true
-          fetch-depth: 1
+          ref: ${{ env.qbittorrent_ref }}
+          persist-credentials: false
 
-      - name: Apply patch and restore workflow
-        shell: python
+      - name: Record qBittorrent revision
+        id: qbittorrent-revision
+        shell: pwsh
         run: |
-          from pathlib import Path
-          import subprocess
+          $sha = git rev-parse HEAD
+          "QBITTORRENT_SHA=$sha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "sha=$sha" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-          def replace_once(path, old, new):
-              p = Path(path)
-              text = p.read_text(encoding="utf-8")
-              if old not in text:
-                  raise SystemExit(f"expected text not found in {path}: {old[:120]!r}")
-              p.write_text(text.replace(old, new, 1), encoding="utf-8")
+      - name: Setup devcmd
+        uses: TheMrMilchmann/setup-msvc-dev@368ef7d1ee4d1171b31d4a7f67f4d954f903f5a9 # v4.1.0
+        with:
+          arch: ${{ env.target_arch }}
 
-          replace_once(
-              "src/base/bittorrent/torrent.h",
-              '#pragma once\n\n#include <QtContainerFwd>\n',
-              '#pragma once\n\n#include <functional>\n\n#include <QtContainerFwd>\n')
-
-          replace_once(
-              "src/base/bittorrent/torrent.h",
-              '        virtual void recheckFiles(const QList<int> &indexes) = 0;\n',
-              '        virtual void recheckFiles(const QList<int> &indexes\n'
-              '                , std::function<void(int, int)> progress = {}) = 0;\n')
-
-          replace_once(
-              "src/base/bittorrent/torrentimpl.h",
-              '        void recheckFiles(const QList<int> &indexes) override;\n',
-              '        void recheckFiles(const QList<int> &indexes\n'
-              '                , std::function<void(int, int)> progress = {}) override;\n')
-
-          impl = Path("src/base/bittorrent/torrentimpl.cpp")
-          text = impl.read_text(encoding="utf-8")
-          start = text.index("void TorrentImpl::recheckFiles(const QList<int> &indexes)")
-          end = text.index("\nvoid TorrentImpl::setSequentialDownload", start)
-          block = """void TorrentImpl::recheckFiles(const QList<int> &indexes
-                  , std::function<void(int, int)> progress)
+      - name: Install build tools
+        run: |
+          if ((Get-Command "ninja.exe" -ErrorAction SilentlyContinue) -eq $null)
           {
-              if (!hasMetadata() || indexes.isEmpty())
-              {
-                  if (progress)
-                      progress(0, 0);
-                  return;
-              }
-
-              std::vector<lt::file_index_t> nativeIndexes;
-              nativeIndexes.reserve(static_cast<std::size_t>(indexes.size()));
-
-              for (const int index : indexes)
-              {
-                  if ((index < 0) || (index >= filesCount()))
-                      continue;
-
-                  nativeIndexes.push_back(m_torrentInfo.nativeIndexes().at(index));
-              }
-
-              if (nativeIndexes.empty())
-              {
-                  if (progress)
-                      progress(0, 0);
-                  return;
-              }
-
-          #ifdef TORRENT_HAS_RECHECK_FILES_PROGRESS_CALLBACK
-              m_nativeHandle.recheck_files(std::move(nativeIndexes), std::move(progress));
-          #else
-              m_nativeHandle.recheck_files(std::move(nativeIndexes));
-              if (progress)
-                  progress(0, 0);
-          #endif
+            choco install ninja
           }
-          """
-          impl.write_text(text[:start] + block + text[end:], encoding="utf-8")
+          where.exe ninja
+          ninja --version
 
-          replace_once(
-              "src/gui/torrentcontentwidget.cpp",
-              '#include "torrentcontentwidget.h"\n\n#include <QApplication>\n',
-              '#include "torrentcontentwidget.h"\n\n#include <memory>\n\n#include <QApplication>\n')
+      - name: Install sccache
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+        with:
+          version: "v0.17.0"
 
-          replace_once(
-              "src/gui/torrentcontentwidget.cpp",
-              '#include <QMessageBox>\n#include <QModelIndexList>\n#include <QSet>\n',
-              '#include <QMessageBox>\n#include <QMetaObject>\n#include <QModelIndexList>\n#include <QPointer>\n#include <QProgressDialog>\n#include <QSet>\n')
+      - name: Record vcpkg revision
+        id: vcpkg-revision
+        run: |
+          $sha = git -C "${{ env.vcpkg_path }}" rev-parse HEAD
+          "sha=$sha" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-          replace_once(
-              "src/gui/torrentcontentwidget.cpp",
-              '            if (!fileIndexes.isEmpty())\n'
-              '                torrent->recheckFiles(fileIndexes.values());\n',
-              '            if (fileIndexes.isEmpty())\n'
-              '                return;\n\n'
-              '            auto *dialog = new QProgressDialog(tr("Rechecking selected files..."), QString(), 0, 0, this);\n'
-              '            dialog->setWindowTitle(tr("Selective recheck"));\n'
-              '            dialog->setWindowModality(Qt::NonModal);\n'
-              '            dialog->setCancelButton(nullptr);\n'
-              '            dialog->setMinimumDuration(0);\n'
-              '            dialog->setAutoClose(false);\n'
-              '            dialog->setAutoReset(false);\n'
-              '            dialog->setAttribute(Qt::WA_DeleteOnClose);\n'
-              '            dialog->show();\n\n'
-              '            const auto progressDialog = std::make_shared<QPointer<QProgressDialog>>(dialog);\n'
-              '            torrent->recheckFiles(fileIndexes.values(), [progressDialog](const int completed, const int total)\n'
-              '            {\n'
-              '                QMetaObject::invokeMethod(qApp, [progressDialog, completed, total]\n'
-              '                {\n'
-              '                    if (progressDialog->isNull())\n'
-              '                        return;\n\n'
-              '                    QProgressDialog *dialog = progressDialog->data();\n'
-              '                    if ((completed < 0) || (total <= 0))\n'
-              '                    {\n'
-              '                        dialog->close();\n'
-              '                        return;\n'
-              '                    }\n\n'
-              '                    if ((dialog->minimum() != 0) || (dialog->maximum() != total))\n'
-              '                        dialog->setRange(0, total);\n\n'
-              '                    dialog->setValue((completed > total) ? total : completed);\n'
-              '                    if (completed >= total)\n'
-              '                        dialog->close();\n'
-              '                }, Qt::QueuedConnection);\n'
-              '            });\n')
+      - name: Cache vcpkg binaries
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ env.vcpkg_binary_cache }}
+          key: vcpkg-binaries-${{ runner.os }}-${{ env.vcpkg_triplet }}-${{ steps.vcpkg-revision.outputs.sha }}
+          restore-keys: |
+            vcpkg-binaries-${{ runner.os }}-${{ env.vcpkg_triplet }}-
 
-          subprocess.run(["git", "fetch", "origin", "custom/master", "--depth=1"], check=True)
-          subprocess.run(["git", "checkout", "FETCH_HEAD", "--", ".github/workflows/ci_windows.yaml"], check=True)
-          subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=True)
-          subprocess.run(["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"], check=True)
-          subprocess.run(["git", "add", "-A"], check=True)
-          subprocess.run(["git", "commit", "-m", "feat: show selective recheck progress"], check=True)
-          subprocess.run(["git", "push", "origin", "HEAD:feature/selective-file-recheck"], check=True)
+      - name: Install dependencies with vcpkg
+        run: |
+          New-Item -ItemType Directory -Force -Path "${{ env.vcpkg_binary_cache }}" | Out-Null
+          New-Item `
+            -Force `
+            -ItemType File `
+            -Path "${{ env.vcpkg_path }}/triplets_overlay/${{ env.vcpkg_triplet }}.cmake"
+          Add-Content `
+            -Path "${{ env.vcpkg_path }}/triplets_overlay/${{ env.vcpkg_triplet }}.cmake" `
+            -Value @("set(VCPKG_TARGET_ARCHITECTURE ${{ env.target_arch }})",
+              "set(VCPKG_LIBRARY_LINKAGE static)",
+              "set(VCPKG_CRT_LINKAGE dynamic)",
+              "set(VCPKG_BUILD_TYPE release)")
+          $packages = `
+            "boost-build:${{ env.vcpkg_triplet }}",
+            "openssl:${{ env.vcpkg_triplet }}",
+            "zlib:${{ env.vcpkg_triplet }}"
+          ${{ env.vcpkg_path }}/vcpkg.exe install `
+            --binarysource="clear;files,${{ env.vcpkg_binary_cache }},readwrite" `
+            --clean-after-build `
+            --overlay-triplets="${{ env.vcpkg_path }}/triplets_overlay" `
+            $packages
+
+      - name: Cache Boost headers
+        id: boost-cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ env.boost_path }}
+          key: boost-windows-msvc-1.91.0
+
+      - name: Install Boost
+        if: steps.boost-cache.outputs.cache-hit != 'true'
+        env:
+          boost_version: "1.91.0"
+          boost_archive_version: "1_91_0"
+        run: |
+          $boost_url="https://archives.boost.io/release/${{ env.boost_version }}/source/boost_${{ env.boost_archive_version }}.tar.gz"
+          $boost_url2="https://sourceforge.net/projects/boost/files/boost/${{ env.boost_version }}/boost_${{ env.boost_archive_version }}.tar.gz"
+          curl -L -o "${{ runner.temp }}/boost.tar.gz" "$boost_url"
+          tar -xf "${{ runner.temp }}/boost.tar.gz" -C "${{ github.workspace }}/.."
+          if ($LastExitCode -ne 0)
+          {
+            curl -L -o "${{ runner.temp }}/boost.tar.gz" "$boost_url2"
+            tar -xf "${{ runner.temp }}/boost.tar.gz" -C "${{ github.workspace }}/.."
+          }
+          move "${{ github.workspace }}/../boost_*" "${{ env.boost_path }}"
+          cd "${{ env.boost_path }}"
+          ${{ env.vcpkg_path }}/installed/${{ env.vcpkg_triplet }}/tools/boost-build/b2.exe `
+            stage `
+            toolset=msvc `
+            --stagedir=.\ `
+            --with-headers
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4
+        with:
+          version: "6.10.3"
+          arch: ${{ env.qt_arch }}
+          archives: qtbase qtsvg qttools
+          modules: qtimageformats
+          cache: true
+
+      - name: Checkout custom libtorrent
+        id: libtorrent-revision
+        run: |
+          git init "${{ env.libtorrent_path }}"
+          cd "${{ env.libtorrent_path }}"
+          git remote add origin "https://github.com/${{ env.libtorrent_repository }}.git"
+          git fetch --depth 1 origin "${{ env.libtorrent_ref }}"
+          git checkout --detach FETCH_HEAD
+
+          $libtorrentSha = git rev-parse HEAD
+          $libtorrentShortSha = git rev-parse --short=12 HEAD
+          $requestedRef = "${{ env.libtorrent_ref }}"
+          $libtorrentRefSafe = if ($requestedRef -match '^[0-9A-Fa-f]{40}$')
+          {
+            "custom-qbittorrent-2.1"
+          }
+          else
+          {
+            $requestedRef -replace '[^A-Za-z0-9._-]', '-'
+          }
+          "LIBTORRENT_SHA=$libtorrentSha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "LIBTORRENT_SHA_SHORT=$libtorrentShortSha" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "LIBTORRENT_REF_SAFE=$libtorrentRefSafe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "sha=$libtorrentSha" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Cache installed custom libtorrent
+        id: libtorrent-cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ env.libtorrent_install_path }}
+          key: libtorrent-windows-msvc-${{ env.vcpkg_triplet }}-boost1.91-webtorrent-${{ steps.libtorrent-revision.outputs.sha }}
+
+      - name: Build and install custom libtorrent
+        if: steps.libtorrent-cache.outputs.cache-hit != 'true'
+        run: |
+          cd "${{ env.libtorrent_path }}"
+          git submodule update --init --recursive --depth 1
+
+          $env:CFLAGS+=" /guard:cf"
+          $env:CXXFLAGS+=" /guard:cf"
+          $env:LDFLAGS+=" /GUARD:CF"
+          cmake `
+            -B build `
+            -G "Ninja" `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_CXX_STANDARD=20 `
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON `
+            -DCMAKE_INSTALL_PREFIX="${{ env.libtorrent_install_path }}" `
+            -DCMAKE_TOOLCHAIN_FILE="${{ env.vcpkg_path }}/scripts/buildsystems/vcpkg.cmake" `
+            -DCMAKE_C_COMPILER_LAUNCHER=sccache `
+            -DCMAKE_CXX_COMPILER_LAUNCHER=sccache `
+            -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded `
+            -DCMAKE_POLICY_DEFAULT_CMP0141=NEW `
+            -DBOOST_ROOT="${{ env.boost_path }}/lib/cmake" `
+            -DBUILD_SHARED_LIBS=OFF `
+            -Ddeprecated-functions=OFF `
+            -Dstatic_runtime=OFF `
+            -DVCPKG_TARGET_TRIPLET=${{ env.vcpkg_triplet }} `
+            -Dwebtorrent=ON
+          cmake --build build --parallel
+          cmake --install build
+
+      - name: Build qBittorrent
+        run: |
+          $env:CXXFLAGS+=" /DQT_FORCE_ASSERTS /WX"
+          cmake `
+            -B build `
+            -G "Ninja" `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON `
+            -DCMAKE_TOOLCHAIN_FILE="${{ env.vcpkg_path }}/scripts/buildsystems/vcpkg.cmake" `
+            -DCMAKE_C_COMPILER_LAUNCHER=sccache `
+            -DCMAKE_CXX_COMPILER_LAUNCHER=sccache `
+            -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded `
+            -DCMAKE_POLICY_DEFAULT_CMP0141=NEW `
+            -DBOOST_ROOT="${{ env.boost_path }}/lib/cmake" `
+            -DLibtorrentRasterbar_DIR="${{ env.libtorrent_install_path }}/lib/cmake/LibtorrentRasterbar" `
+            -DMSVC_RUNTIME_DYNAMIC=ON `
+            -DTESTING=ON `
+            -DVCPKG_TARGET_TRIPLET=${{ env.vcpkg_triplet }} `
+            -DVERBOSE_CONFIGURE=ON `
+            --graphviz=build/target_graph.dot
+          if ($LASTEXITCODE -ne 0)
+          {
+            throw "qBittorrent configuration failed with exit code $LASTEXITCODE"
+          }
+
+          cmake --build build --parallel
+          if ($LASTEXITCODE -ne 0)
+          {
+            throw "qBittorrent build failed with exit code $LASTEXITCODE"
+          }
+
+          cmake --build build --target check --parallel
+          if ($LASTEXITCODE -ne 0)
+          {
+            throw "qBittorrent tests failed with exit code $LASTEXITCODE"
+          }
+
+      - name: Show sccache stats
+        if: always()
+        continue-on-error: true
+        run: sccache --show-stats
+
+      - name: Prepare build artifacts
+        run: |
+          New-Item -ItemType Directory -Force -Path upload/qBittorrent, upload/cmake | Out-Null
+          Copy-Item build/qbittorrent.exe, dist/windows/qt.conf -Destination upload/qBittorrent
+
+          $pdb = Get-ChildItem -Path build -Filter qbittorrent.pdb -Recurse -File | Select-Object -First 1
+          if ($pdb)
+          {
+            Copy-Item $pdb.FullName -Destination upload/qBittorrent
+          }
+          else
+          {
+            Write-Warning "qbittorrent.pdb was not produced; continuing without debug symbols"
+          }
+
+          $windeployqt = Join-Path "${{ env.Qt_ROOT_DIR }}" "bin/windeployqt.exe"
+          if (!(Test-Path $windeployqt))
+          {
+            throw "windeployqt.exe was not found at $windeployqt"
+          }
+
+          & $windeployqt `
+            --release `
+            --no-translations `
+            --no-compiler-runtime `
+            --dir upload/qBittorrent `
+            build/qbittorrent.exe
+          if ($LASTEXITCODE -ne 0)
+          {
+            throw "windeployqt failed with exit code $LASTEXITCODE"
+          }
+
+          @(
+            "qBittorrent repository: ${{ github.repository }}",
+            "qBittorrent ref: ${{ env.qbittorrent_ref }}",
+            "qBittorrent commit: $env:QBITTORRENT_SHA",
+            "libtorrent repository: ${{ env.libtorrent_repository }}",
+            "libtorrent ref: ${{ env.libtorrent_ref }}",
+            "libtorrent commit: $env:LIBTORRENT_SHA",
+            "architecture: ${{ env.target_arch }}",
+            "configuration: RelWithDebInfo",
+            "Qt: 6.10.3",
+            "Boost: 1.91.0",
+            "WebTorrent: enabled"
+          ) | Set-Content -Path upload/qBittorrent/build-info.txt
+
+          Copy-Item build/compile_commands.json, build/target_graph.dot -Destination upload/cmake
+          if (Test-Path "${{ env.libtorrent_path }}/build/compile_commands.json")
+          {
+            New-Item -ItemType Directory -Force -Path upload/cmake/libtorrent | Out-Null
+            Copy-Item "${{ env.libtorrent_path }}/build/compile_commands.json" -Destination upload/cmake/libtorrent
+          }
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: qBittorrent-Custom_Windows-x64_libtorrent-${{ env.LIBTORRENT_REF_SAFE }}-${{ env.LIBTORRENT_SHA_SHORT }}
+          path: upload
+
+      - name: Install NSIS
+        uses: repolevedavaj/install-nsis@1ab2f7ba2fe9408db612029be0bb3c0088b0d3e9 # v1.2.1
+        with:
+          nsis-version: "3.12"
+
+      - name: Create installer
+        run: |
+          7z x -o"dist/windows/" "dist/windows/NSISPlugins.zip"
+
+          # Release packaging favors maximum compression, but CI installers are
+          # transient validation artifacts. Use fast zlib compression here only.
+          $nsisConfig = "dist/windows/config.nsh"
+          $originalConfig = Get-Content $nsisConfig -Raw
+          $fastConfig = $originalConfig -replace '(?m)^SetCompressor /SOLID LZMA\r?\nSetCompressorDictSize 64\r?$', 'SetCompressor zlib'
+          if ($fastConfig -eq $originalConfig)
+          {
+            throw "Failed to switch the CI installer to fast NSIS compression"
+          }
+          Set-Content -Path $nsisConfig -Value $fastConfig -NoNewline
+
+          makensis `
+            /DQBT_CPU_ARCH="${{ env.target_arch }}" `
+            /DQBT_DIST_DIR="../../upload/qBittorrent" `
+            /WX `
+            dist/windows/qbittorrent.nsi
+          move `
+            "dist/windows/qbittorrent_*_setup.exe" `
+            "qBittorrent-Custom_Windows-x64_libtorrent-${{ env.LIBTORRENT_REF_SAFE }}-${{ env.LIBTORRENT_SHA_SHORT }}-setup.exe"
+
+      - name: Upload installer
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          archive: false
+          path: qBittorrent-Custom_Windows-x64_libtorrent-${{ env.LIBTORRENT_REF_SAFE }}-${{ env.LIBTORRENT_SHA_SHORT }}-setup.exe
+
+  update-scoop:
+    name: Trigger scoop-bucket Excavator
+    needs: ci
+    if: >-
+      github.ref == 'refs/heads/custom/master' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    environment: scoop-bucket
+    permissions:
+      contents: read
+
+    steps:
+      - name: Dispatch qbittorrent-custom update
+        uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
+        with:
+          token: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          repository: marcmy/scoop-bucket
+          event-type: qbittorrent-custom-built
+          client-payload: >-
+            {"run_id":"${{ github.run_id }}","head_sha":"${{ needs.ci.outputs.qbittorrent_sha }}"}

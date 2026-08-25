@@ -29,6 +29,8 @@
 
 #include "torrentcontentwidget.h"
 
+#include <memory>
+
 #include <QApplication>
 #include <QClipboard>
 #include <QDir>
@@ -37,7 +39,10 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
+#include <QMetaObject>
 #include <QModelIndexList>
+#include <QPointer>
+#include <QProgressDialog>
 #include <QSet>
 #include <QShortcut>
 #include <QWheelEvent>
@@ -459,8 +464,42 @@ void TorrentContentWidget::displayContextMenu()
             for (const QModelIndex &row : rows)
                 fileIndexes.unite(m_filterModel->getFileIndexes(row));
 
-            if (!fileIndexes.isEmpty())
-                torrent->recheckFiles(fileIndexes.values());
+            if (fileIndexes.isEmpty())
+                return;
+
+            auto *dialog = new QProgressDialog(tr("Rechecking selected files..."), QString(), 0, 0, this);
+            dialog->setWindowTitle(tr("Selective recheck"));
+            dialog->setWindowModality(Qt::NonModal);
+            dialog->setCancelButton(nullptr);
+            dialog->setMinimumDuration(0);
+            dialog->setAutoClose(false);
+            dialog->setAutoReset(false);
+            dialog->setAttribute(Qt::WA_DeleteOnClose);
+            dialog->show();
+
+            const auto progressDialog = std::make_shared<QPointer<QProgressDialog>>(dialog);
+            torrent->recheckFiles(fileIndexes.values(), [progressDialog](const int completed, const int total)
+            {
+                QMetaObject::invokeMethod(qApp, [progressDialog, completed, total]
+                {
+                    if (progressDialog->isNull())
+                        return;
+
+                    QProgressDialog *dialog = progressDialog->data();
+                    if ((completed < 0) || (total <= 0))
+                    {
+                        dialog->close();
+                        return;
+                    }
+
+                    if ((dialog->minimum() != 0) || (dialog->maximum() != total))
+                        dialog->setRange(0, total);
+
+                    dialog->setValue((completed > total) ? total : completed);
+                    if (completed >= total)
+                        dialog->close();
+                }, Qt::QueuedConnection);
+            });
         });
         menu->addSeparator();
     }
