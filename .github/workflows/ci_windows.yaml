@@ -16,7 +16,7 @@ on:
       libtorrent_ref:
         description: libtorrent branch, tag, or commit to build
         required: false
-        default: fix/selective-recheck-crash
+        default: custom/qbittorrent-2.1
         type: string
       qbittorrent_ref:
         description: qBittorrent branch, tag, or commit to build
@@ -27,12 +27,12 @@ on:
 permissions: {}
 
 concurrency:
-  group: ci-windows-${{ inputs.qbittorrent_ref || github.ref }}-${{ inputs.libtorrent_ref || 'fix/selective-recheck-crash' }}
+  group: ci-windows-${{ inputs.qbittorrent_ref || github.ref }}-${{ inputs.libtorrent_ref || 'custom/qbittorrent-2.1' }}
   cancel-in-progress: true
 
 jobs:
   ci:
-    name: Build (marcmy/libtorrent ${{ inputs.libtorrent_ref || 'fix/selective-recheck-crash' }}, x64)
+    name: Build (marcmy/libtorrent ${{ inputs.libtorrent_ref || 'custom/qbittorrent-2.1' }}, x64)
     runs-on: windows-latest
     permissions:
       actions: write # required for sccache and workflow cache writes
@@ -49,7 +49,7 @@ jobs:
       vcpkg_triplet: "x64-windows-static-md-release"
       qt_arch: "win64_msvc2022_64"
       libtorrent_repository: "marcmy/libtorrent"
-      libtorrent_ref: "${{ inputs.libtorrent_ref || 'fix/selective-recheck-crash' }}"
+      libtorrent_ref: "${{ inputs.libtorrent_ref || 'custom/qbittorrent-2.1' }}"
       qbittorrent_ref: "${{ inputs.qbittorrent_ref || github.sha }}"
       SCCACHE_GHA_ENABLED: "true"
       SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
