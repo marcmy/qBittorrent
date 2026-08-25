@@ -1,0 +1,28 @@
+name: Dispatch selective recheck integration
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+
+jobs:
+  dispatch:
+    if: >-
+      github.event.issue.pull_request &&
+      github.event.issue.number == 24 &&
+      github.event.comment.body == '/dispatch-selective-state-refresh'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch exact Windows integration build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run ci_windows.yaml \
+            --repo "${{ github.repository }}" \
+            --ref feature/selective-file-recheck \
+            -f libtorrent_ref=fc01ceb2947a6b3573e0767684bb3f1b66ca2ca5 \
+            -f qbittorrent_ref=8bd0c1c6192951a73a83e883b8bdf1f4b462b293
