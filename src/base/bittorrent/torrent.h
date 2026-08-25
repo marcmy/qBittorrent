@@ -29,6 +29,8 @@
 
 #pragma once
 
+#include <functional>
+
 #include <QtContainerFwd>
 #include <QtTypes>
 #include <QMetaType>
@@ -284,6 +286,8 @@ namespace BitTorrent
         virtual void forceReannounce(int index = -1) = 0;
         virtual void forceDHTAnnounce() = 0;
         virtual void forceRecheck() = 0;
+        virtual void recheckFiles(const QList<int> &indexes
+                , std::function<void(int, int)> progress = {}) = 0;
         virtual void setUploadLimit(int limit) = 0;
         virtual void setDownloadLimit(int limit) = 0;
         virtual void setSuperSeeding(bool enable) = 0;

@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <vector>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -1747,6 +1748,43 @@ void TorrentImpl::forceRecheck()
     }
 }
 
+void TorrentImpl::recheckFiles(const QList<int> &indexes
+        , std::function<void(int, int)> progress)
+{
+    if (!hasMetadata() || indexes.isEmpty())
+    {
+        if (progress)
+            progress(0, 0);
+        return;
+    }
+
+    std::vector<lt::file_index_t> nativeIndexes;
+    nativeIndexes.reserve(static_cast<std::size_t>(indexes.size()));
+
+    for (const int index : indexes)
+    {
+        if ((index < 0) || (index >= filesCount()))
+            continue;
+
+        nativeIndexes.push_back(m_torrentInfo.nativeIndexes().at(index));
+    }
+
+    if (nativeIndexes.empty())
+    {
+        if (progress)
+            progress(0, 0);
+        return;
+    }
+
+#ifdef TORRENT_HAS_RECHECK_FILES_PROGRESS_CALLBACK
+    m_nativeHandle.recheck_files(std::move(nativeIndexes), std::move(progress));
+#else
+    m_nativeHandle.recheck_files(std::move(nativeIndexes));
+    if (progress)
+        progress(0, 0);
+#endif
+}
+
 void TorrentImpl::setSequentialDownload(const bool enable)
 {
     if (enable)
@@ -2725,31 +2763,44 @@ void TorrentImpl::updateProgress()
         m_filesProgress.resize(filesCount());
 
     const QBitArray oldPieces = std::exchange(m_pieces, LT::toQBitArray(m_nativeStatus.pieces));
-    const QBitArray newPieces = m_pieces ^ oldPieces;
+    const QBitArray changedPieces = m_pieces ^ oldPieces;
 
     const int64_t pieceSize = m_torrentInfo.pieceLength();
-    for (qsizetype index = 0; index < newPieces.size(); ++index)
+    for (qsizetype index = 0; index < changedPieces.size(); ++index)
     {
-        if (!newPieces.at(index))
+        if (!changedPieces.at(index))
             continue;
 
+        const bool havePiece = m_pieces.at(index);
         int64_t size = m_torrentInfo.pieceLength(index);
         int64_t pieceOffset = index * pieceSize;
 
         for (const int fileIndex : asConst(m_torrentInfo.fileIndicesForPiece(index)))
         {
+            const int64_t fileSize = m_torrentInfo.fileSize(fileIndex);
             const int64_t fileOffsetInPiece = pieceOffset - m_torrentInfo.fileOffset(fileIndex);
-            const int64_t add = std::min<int64_t>((m_torrentInfo.fileSize(fileIndex) - fileOffsetInPiece), size);
+            const int64_t change = std::min<int64_t>((fileSize - fileOffsetInPiece), size);
 
-            m_filesProgress[fileIndex] += add;
+            if (havePiece)
+            {
+                m_filesProgress[fileIndex] = std::min<int64_t>(fileSize, m_filesProgress[fileIndex] + change);
+            }
+            else
+            {
+                m_filesProgress[fileIndex] = std::max<int64_t>(0, m_filesProgress[fileIndex] - change);
+                m_completedFiles.clearBit(fileIndex);
+            }
 
-            size -= add;
+            size -= change;
             if (size <= 0)
                 break;
 
-            pieceOffset += add;
+            pieceOffset += change;
         }
     }
+
+    if (!isFinished())
+        m_hasFinishedStatus = false;
 }
 
 void TorrentImpl::setUploadLimit(const int limit)
