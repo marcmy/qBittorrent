@@ -6841,7 +6841,7 @@ void SessionImpl::handleFastResumeRejectedAlert(const lt::fastresume_rejected_al
     if (!torrent) [[unlikely]]
         return;
 
-    torrent->handleFastResumeRejected();
+    torrent->handleFastResumeRejected(alert->error == lt::errors::mismatching_file_size);
     LogMsg(tr("Failed to restore torrent. Files were probably moved or storage isn't accessible. Torrent: \"%1\". Reason: \"%2\"")
             .arg(torrent->name(), QString::fromStdString(alert->message())), Log::WARNING);
 }

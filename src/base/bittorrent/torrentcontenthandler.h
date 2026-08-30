@@ -76,19 +76,6 @@ namespace BitTorrent
                 , const QHash<int, Path> &renamedFiles, const QList<int> &failedFileIndexes);
 
     protected:
-        enum class FileRenamePreparationResult
-        {
-            Rename,
-            Remapped,
-            SourceMissing,
-            TargetExists
-        };
-
-        virtual FileRenamePreparationResult prepareFileRename(int, const Path &)
-        {
-            return FileRenamePreparationResult::Rename;
-        }
-
         virtual void doRenameFolder(const Path &oldFolderPath, const Path &newFolderPath) = 0;
     };
 }
