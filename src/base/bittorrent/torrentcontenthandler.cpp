@@ -58,7 +58,18 @@ void BitTorrent::TorrentContentHandler::renameFile(const Path &oldPath, const Pa
     if (renamingFileIndex < 0)
         throw RuntimeError(tr("No such file: '%1'.").arg(oldPath.toString()));
 
-    renameFile(renamingFileIndex, newPath);
+    switch (prepareFileRename(renamingFileIndex, newPath))
+    {
+    case FileRenamePreparationResult::Rename:
+        renameFile(renamingFileIndex, newPath);
+        break;
+    case FileRenamePreparationResult::Remapped:
+        break;
+    case FileRenamePreparationResult::SourceMissing:
+        throw RuntimeError(tr("The source file does not exist on disk: '%1'.").arg(oldPath.toString()));
+    case FileRenamePreparationResult::TargetExists:
+        throw RuntimeError(tr("The destination already exists on disk: '%1'.").arg(newPath.toString()));
+    }
 }
 
 void BitTorrent::TorrentContentHandler::renameFolder(const Path &oldFolderPath, const Path &newFolderPath)

@@ -29,6 +29,7 @@
 
 #pragma once
 
+#include <filesystem>
 #include <functional>
 #include <memory>
 
@@ -312,6 +313,76 @@ namespace BitTorrent
 
         void doRenameFile(int index, const Path &path, int folderRenameJobID = -1);
         void doRenameFolder(const Path &oldFolderPath, const Path &newFolderPath) override;
+
+        FileRenamePreparationResult prepareFileRename(const int index, const Path &path) override
+        {
+            Q_ASSERT((index >= 0) && (index < filesCount()));
+            if ((index < 0) || (index >= filesCount())) [[unlikely]]
+                return FileRenamePreparationResult::Rename;
+
+            const Path storagePath = actualStorageLocation();
+            const Path sourcePath = storagePath / actualFilePath(index);
+            const Path requestedTargetPath = storagePath / path;
+            const Path targetActualRelativePath = makeActualPath(index, path);
+            const Path targetActualPath = storagePath / targetActualRelativePath;
+
+            const bool sourceExists = sourcePath.exists();
+            const bool requestedTargetExists = requestedTargetPath.exists();
+            const bool targetActualExists = targetActualPath.exists();
+
+            if (sourceExists)
+            {
+                const bool requestedTargetConflicts = (requestedTargetPath != sourcePath) && requestedTargetExists;
+                const bool actualTargetConflicts = (targetActualPath != sourcePath) && targetActualExists;
+                return (requestedTargetConflicts || actualTargetConflicts)
+                        ? FileRenamePreparationResult::TargetExists
+                        : FileRenamePreparationResult::Rename;
+            }
+
+            if (!requestedTargetExists && !targetActualExists)
+                return FileRenamePreparationResult::SourceMissing;
+
+            const auto isMatchingRegularFile = [this, index](const Path &candidate)
+            {
+                std::error_code error;
+                const std::filesystem::path fsPath = candidate.toStdFsPath();
+                if (!std::filesystem::is_regular_file(fsPath, error) || error)
+                    return false;
+
+                const std::uintmax_t size = std::filesystem::file_size(fsPath, error);
+                return !error && (size == static_cast<std::uintmax_t>(fileSize(index)));
+            };
+
+            Path remappedActualPath;
+            if (requestedTargetExists && isMatchingRegularFile(requestedTargetPath))
+                remappedActualPath = path;
+            else if (targetActualExists && isMatchingRegularFile(targetActualPath))
+                remappedActualPath = targetActualRelativePath;
+            else
+                return FileRenamePreparationResult::TargetExists;
+
+            const Path oldFilePath = m_filePaths.at(index);
+            const lt::file_index_t nativeIndex = m_torrentInfo.nativeIndexes().at(index);
+            const auto previousRenamedFiles = m_ltAddTorrentParams.renamed_files;
+
+            m_ltAddTorrentParams.renamed_files[nativeIndex] = remappedActualPath.toString().toStdString();
+            m_filePaths[index] = path;
+
+            try
+            {
+                reload();
+            }
+            catch (...)
+            {
+                m_ltAddTorrentParams.renamed_files = previousRenamedFiles;
+                m_filePaths[index] = oldFilePath;
+                throw;
+            }
+
+            emit fileRenamed(index, oldFilePath);
+            deferredRequestResumeData();
+            return FileRenamePreparationResult::Remapped;
+        }
 
         Path makeActualPath(int index, const Path &path) const;
         Path makeUserPath(const Path &path) const;
