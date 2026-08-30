@@ -71,6 +71,7 @@ namespace BitTorrent
     signals:
         void metadataReceived();
         void fileRenamed(int index, const Path &oldFilePath);
+        void fileRenamingFailed(int index);
         void folderRenamed(const Path &newFolderPath, const Path &oldFolderPath, const QHash<int, Path> &renamedFiles);
         void folderRenamingFailed(const Path &newFolderPath, const Path &oldFolderPath
                 , const QHash<int, Path> &renamedFiles, const QList<int> &failedFileIndexes);
