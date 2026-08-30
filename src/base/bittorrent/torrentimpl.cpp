@@ -2698,6 +2698,10 @@ void TorrentImpl::handleFileRenameFailed(const lt::file_index_t nativeFileIndex)
                     , folderRenameInfo.oldFolderPath, folderRenameInfo.renamedFiles, folderRenameInfo.failedFileIndexes);
         }
     }
+    else
+    {
+        emit fileRenamingFailed(fileIndex);
+    }
 
     while (!isMoveInProgress() && m_renamingFiles.isEmpty() && !m_moveFinishedTriggers.isEmpty())
         m_moveFinishedTriggers.takeFirst()();
