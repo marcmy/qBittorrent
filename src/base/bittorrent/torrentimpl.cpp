@@ -2154,7 +2154,20 @@ void TorrentImpl::renameFile(const int index, const Path &path)
     if ((index < 0) || (index >= filesCount())) [[unlikely]]
         return;
 
-    const Path targetActualPath = makeActualPath(index, path);
+    Path targetActualPath = makeActualPath(index, path);
+
+    // If the exact user-selected target already exists, let libtorrent decide
+    // whether this is a normal conflicting rename or a missing-source remap.
+    // Do not redirect an existing target into .unwanted or append .!qB: doing
+    // so would make selective recheck hash a different, non-existent path.
+    if (targetActualPath != path)
+    {
+        const Path requestedTargetPath = actualStorageLocation() / path;
+        std::error_code error;
+        if (std::filesystem::is_regular_file(requestedTargetPath.toStdFsPath(), error) && !error)
+            targetActualPath = path;
+    }
+
     doRenameFile(index, targetActualPath);
 }
 
