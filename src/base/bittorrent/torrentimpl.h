@@ -321,14 +321,26 @@ namespace BitTorrent
                 return FileRenamePreparationResult::Rename;
 
             const Path storagePath = actualStorageLocation();
-            const Path sourcePath = storagePath / actualFilePath(index);
+            const Path sourceRelativePath = actualFilePath(index);
+            const Path sourcePath = storagePath / sourceRelativePath;
             const Path requestedTargetPath = storagePath / path;
             const Path targetActualRelativePath = makeActualPath(index, path);
             const Path targetActualPath = storagePath / targetActualRelativePath;
 
+            // The user-visible file path and libtorrent's actual storage path can differ
+            // (renamed files, content layout, .!qB, .unwanted). For a basename rename,
+            // also look beside the actual source path: that is the directory libtorrent
+            // will use when rechecking the original file.
+            const Path siblingTargetRelativePath = sourceRelativePath.parentPath() / Path(path.filename());
+            const Path siblingTargetPath = storagePath / siblingTargetRelativePath;
+            const Path siblingActualTargetRelativePath = sourceRelativePath.parentPath() / Path(targetActualRelativePath.filename());
+            const Path siblingActualTargetPath = storagePath / siblingActualTargetRelativePath;
+
             const bool sourceExists = sourcePath.exists();
             const bool requestedTargetExists = requestedTargetPath.exists();
             const bool targetActualExists = targetActualPath.exists();
+            const bool siblingTargetExists = siblingTargetPath.exists();
+            const bool siblingActualTargetExists = siblingActualTargetPath.exists();
 
             if (sourceExists)
             {
@@ -339,8 +351,11 @@ namespace BitTorrent
                         : FileRenamePreparationResult::Rename;
             }
 
-            if (!requestedTargetExists && !targetActualExists)
+            if (!requestedTargetExists && !targetActualExists
+                    && !siblingTargetExists && !siblingActualTargetExists)
+            {
                 return FileRenamePreparationResult::SourceMissing;
+            }
 
             const auto isMatchingRegularFile = [this, index](const Path &candidate)
             {
@@ -358,6 +373,10 @@ namespace BitTorrent
                 remappedActualPath = path;
             else if (targetActualExists && isMatchingRegularFile(targetActualPath))
                 remappedActualPath = targetActualRelativePath;
+            else if (siblingTargetExists && isMatchingRegularFile(siblingTargetPath))
+                remappedActualPath = siblingTargetRelativePath;
+            else if (siblingActualTargetExists && isMatchingRegularFile(siblingActualTargetPath))
+                remappedActualPath = siblingActualTargetRelativePath;
             else
                 return FileRenamePreparationResult::TargetExists;
 
