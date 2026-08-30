@@ -819,12 +819,6 @@ void TorrentContentModel::setContentHandler(BitTorrent::TorrentContentHandler *c
 
         connect(m_contentHandler, &BitTorrent::TorrentContentHandler::fileRenamed
                 , this, &TorrentContentModel::onFileRenamed);
-        connect(m_contentHandler, &BitTorrent::TorrentContentHandler::fileRenamingFailed
-                , this, [this](const int fileIndex)
-        {
-            emit renameFailed(tr("Failed to rename file '%1'.")
-                    .arg(m_contentHandler->filePath(fileIndex).toString()));
-        });
         connect(m_contentHandler, &BitTorrent::TorrentContentHandler::folderRenamed
                 , this, &TorrentContentModel::onFolderRenamed);
         connect(m_contentHandler, &BitTorrent::TorrentContentHandler::folderRenamingFailed
