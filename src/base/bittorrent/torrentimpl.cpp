@@ -30,6 +30,7 @@
 #include "torrentimpl.h"
 
 #include <algorithm>
+#include <filesystem>
 #include <memory>
 #include <vector>
 
@@ -1732,6 +1733,7 @@ void TorrentImpl::forceRecheck()
     if (m_hasMissingFiles)
     {
         m_hasMissingFiles = false;
+        m_missingFilesStateRecovered = false;
         if (!isStopped())
         {
             setAutoManaged(m_operatingMode == TorrentOperatingMode::AutoManaged);
@@ -2081,10 +2083,23 @@ void TorrentImpl::start(const TorrentOperatingMode mode)
     if (m_hasMissingFiles)
     {
         m_hasMissingFiles = false;
-        m_isStopped = false;
-        m_ltAddTorrentParams.ti = std::const_pointer_cast<lt::torrent_info>(nativeTorrentInfo());
-        reload();
-        return;
+        if (m_missingFilesStateRecovered)
+        {
+            // The rejected resume data has already been reduced to the affected
+            // file pieces. Resume the existing recovered torrent instead of
+            // reloading it and throwing away that preserved state again.
+            m_missingFilesStateRecovered = false;
+            deferredRequestResumeData();
+        }
+        else
+        {
+            // Preserve the legacy fallback when targeted recovery was not
+            // possible (e.g. unavailable storage or no usable resume bitfield).
+            m_isStopped = false;
+            m_ltAddTorrentParams.ti = std::const_pointer_cast<lt::torrent_info>(nativeTorrentInfo());
+            reload();
+            return;
+        }
     }
 
     if (m_isStopped)
@@ -2174,6 +2189,7 @@ void TorrentImpl::handleMoveStorageJobFinished(const Path &path, const MoveStora
         {
             // it can be moved to the proper location
             m_hasMissingFiles = false;
+            m_missingFilesStateRecovered = false;
             m_ltAddTorrentParams.save_path = m_nativeStatus.save_path;
             m_ltAddTorrentParams.ti = std::const_pointer_cast<lt::torrent_info>(nativeTorrentInfo());
             reload();
@@ -2230,6 +2246,7 @@ void TorrentImpl::handleTorrentChecked()
 void TorrentImpl::handleTorrentFinished()
 {
     m_hasMissingFiles = false;
+    m_missingFilesStateRecovered = false;
     if (m_hasFinishedStatus)
         return;
 
@@ -2388,10 +2405,177 @@ void TorrentImpl::prepareResumeData(lt::add_torrent_params params)
     m_session->handleTorrentResumeDataReady(this, std::move(resumeData));
 }
 
-void TorrentImpl::handleFastResumeRejected()
+void TorrentImpl::handleFastResumeRejected(const bool recoverableFileMismatch)
 {
-    // Files were probably moved or storage isn't accessible
+    // Keep the visible Missing Files state so the user still has to address the
+    // problem explicitly. When possible, however, retain the resume state for
+    // unaffected files instead of allowing libtorrent's rejected fast-resume
+    // path to turn the entire torrent into an unchecked 0% torrent.
     m_hasMissingFiles = true;
+    m_missingFilesStateRecovered = false;
+
+    // Only a missing/short-file rejection is safe to recover selectively.
+    // Other fast-resume failures keep the established full-recovery behavior.
+    if (!recoverableFileMismatch)
+        return;
+
+    if (!hasMetadata())
+        return;
+
+    const int pieceCount = piecesCount();
+    if (pieceCount <= 0)
+        return;
+
+    // Build the recovered state in local copies first. A failed or inapplicable
+    // recovery must leave the original resume data untouched so the legacy
+    // fallback still sees exactly the state libtorrent originally rejected.
+    auto recoveredHavePieces = m_ltAddTorrentParams.have_pieces;
+    auto recoveredVerifiedPieces = m_ltAddTorrentParams.verified_pieces;
+    auto recoveredUnfinishedPieces = m_ltAddTorrentParams.unfinished_pieces;
+    lt::torrent_flags_t recoveredFlags = m_ltAddTorrentParams.flags;
+
+    const bool seedMode = static_cast<bool>(recoveredFlags & lt::torrent_flags::seed_mode);
+    if (seedMode)
+    {
+        // Seed mode is an implicit all-pieces bitfield. Materialize it before
+        // invalidating the pieces backed by the missing file.
+        recoveredHavePieces.resize(pieceCount, true);
+        recoveredFlags &= ~lt::torrent_flags::seed_mode;
+    }
+    else if (recoveredHavePieces.empty())
+    {
+        return;
+    }
+    else if (recoveredHavePieces.size() < pieceCount)
+    {
+        recoveredHavePieces.resize(pieceCount, false);
+    }
+
+    bool recoveredMissingFile = false;
+    bool unsafeStorageError = false;
+    const Path storagePath = actualStorageLocation();
+
+    for (int fileIndex = 0; fileIndex < filesCount(); ++fileIndex)
+    {
+        // Priority-zero files are allowed to be absent and may be backed by the
+        // part file, so they must not be classified as newly missing content.
+        if (m_filePriorities.at(fileIndex) == DownloadPriority::Ignored)
+            continue;
+
+        const TorrentInfo::PieceRange filePieces = m_torrentInfo.filePieces(fileIndex);
+        if (filePieces.isEmpty())
+            continue;
+
+        // Only invalidate a file that the saved resume state claimed was
+        // complete. Incomplete files may legitimately be shorter on disk.
+        bool expectedComplete = true;
+        for (const int piece : filePieces)
+        {
+            const lt::piece_index_t nativePiece {piece};
+            if ((nativePiece >= recoveredHavePieces.end_index()) || !recoveredHavePieces[nativePiece])
+            {
+                expectedComplete = false;
+                break;
+            }
+        }
+        if (!expectedComplete)
+            continue;
+
+        const Path actualPath = storagePath / actualFilePath(fileIndex);
+        const std::filesystem::path fsPath = actualPath.toStdFsPath();
+        std::error_code error;
+        const bool regularFile = std::filesystem::is_regular_file(fsPath, error);
+
+        bool sizeMismatch = false;
+        if (!error && regularFile)
+        {
+            const std::uintmax_t size = std::filesystem::file_size(fsPath, error);
+            if (!error)
+                sizeMismatch = (size < static_cast<std::uintmax_t>(fileSize(fileIndex)));
+        }
+        else if (!error || (error == std::errc::no_such_file_or_directory))
+        {
+            sizeMismatch = true;
+        }
+
+        // Do not bypass libtorrent's verification if storage produced a real
+        // access/I/O error. In that case the legacy full-recovery path is safer.
+        if (error && (error != std::errc::no_such_file_or_directory))
+        {
+            unsafeStorageError = true;
+            break;
+        }
+        if (!sizeMismatch)
+            continue;
+
+        recoveredMissingFile = true;
+        for (const int piece : filePieces)
+        {
+            const lt::piece_index_t nativePiece {piece};
+            if (nativePiece < recoveredHavePieces.end_index())
+                recoveredHavePieces.clear_bit(nativePiece);
+            if (nativePiece < recoveredVerifiedPieces.end_index())
+                recoveredVerifiedPieces.clear_bit(nativePiece);
+            recoveredUnfinishedPieces.erase(nativePiece);
+        }
+    }
+
+    if (unsafeStorageError || !recoveredMissingFile)
+        return;
+
+    const auto originalHavePieces = m_ltAddTorrentParams.have_pieces;
+    const auto originalVerifiedPieces = m_ltAddTorrentParams.verified_pieces;
+    const auto originalUnfinishedPieces = m_ltAddTorrentParams.unfinished_pieces;
+    const lt::torrent_flags_t originalFlags = m_ltAddTorrentParams.flags;
+    const auto originalTorrentInfo = m_ltAddTorrentParams.ti;
+    const bool originalHasFinishedStatus = m_hasFinishedStatus;
+
+    m_ltAddTorrentParams.have_pieces = std::move(recoveredHavePieces);
+    m_ltAddTorrentParams.verified_pieces = std::move(recoveredVerifiedPieces);
+    m_ltAddTorrentParams.unfinished_pieces = std::move(recoveredUnfinishedPieces);
+    m_ltAddTorrentParams.flags = recoveredFlags | lt::torrent_flags::no_verify_files;
+    m_ltAddTorrentParams.ti = std::const_pointer_cast<lt::torrent_info>(nativeTorrentInfo());
+    m_hasFinishedStatus = false;
+
+    // The filesystem mismatch has just been handled explicitly above. Reload
+    // once with verification disabled so libtorrent imports the filtered piece
+    // map instead of immediately rejecting it and starting a full check again.
+    try
+    {
+        reload();
+    }
+    catch (const RuntimeError &)
+    {
+        m_ltAddTorrentParams.have_pieces = originalHavePieces;
+        m_ltAddTorrentParams.verified_pieces = originalVerifiedPieces;
+        m_ltAddTorrentParams.unfinished_pieces = originalUnfinishedPieces;
+        m_ltAddTorrentParams.flags = originalFlags;
+        m_ltAddTorrentParams.ti = originalTorrentInfo;
+        m_hasFinishedStatus = originalHasFinishedStatus;
+        return;
+    }
+
+    // Keep the recovered explicit piece map, but never persist the one-shot
+    // verification bypass flag. Seed mode intentionally stays cleared because
+    // the torrent is no longer complete after invalidating the missing file.
+    m_ltAddTorrentParams.flags = recoveredFlags;
+    m_missingFilesStateRecovered = true;
+
+    // A fast-resume rejection remains an explicit user-visible error. Do not
+    // let the recovered torrent auto-start until the user chooses how to handle
+    // the missing file (ignore, redownload, or restore + selective recheck).
+    setAutoManaged(false);
+    m_nativeHandle.pause();
+
+    // reload() intentionally clears qBittorrent's cached progress while waiting
+    // for a status update. Seed it immediately from the recovered map so the
+    // Content tab keeps unaffected files at their previous completion instead
+    // of flashing the whole torrent at 0%.
+    m_nativeStatus.pieces = m_ltAddTorrentParams.have_pieces;
+    m_nativeStatus.num_pieces = m_ltAddTorrentParams.have_pieces.count();
+    updateProgress();
+    updateState();
+    deferredRequestResumeData();
 }
 
 void TorrentImpl::handleFileRenamed(const lt::file_index_t nativeFileIndex, const Path &newActualFilePath, const Path &oldActualFilePath)

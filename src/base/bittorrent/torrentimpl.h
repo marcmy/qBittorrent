@@ -29,7 +29,6 @@
 
 #pragma once
 
-#include <filesystem>
 #include <functional>
 #include <memory>
 
@@ -264,7 +263,7 @@ namespace BitTorrent
         int fileIndexFromNative(lt::file_index_t nativeFileIndex) const;
 
         void handleStateUpdate(const lt::torrent_status &nativeStatus);
-        void handleFastResumeRejected();
+        void handleFastResumeRejected(bool recoverableFileMismatch);
         void handleFileCompleted(lt::file_index_t nativeFileIndex);
         void handleFileError(FileErrorInfo fileError);
         void handleFileRenamed(lt::file_index_t nativeFileIndex, const Path &newActualFilePath, const Path &oldActualFilePath);
@@ -313,95 +312,6 @@ namespace BitTorrent
 
         void doRenameFile(int index, const Path &path, int folderRenameJobID = -1);
         void doRenameFolder(const Path &oldFolderPath, const Path &newFolderPath) override;
-
-        FileRenamePreparationResult prepareFileRename(const int index, const Path &path) override
-        {
-            Q_ASSERT((index >= 0) && (index < filesCount()));
-            if ((index < 0) || (index >= filesCount())) [[unlikely]]
-                return FileRenamePreparationResult::Rename;
-
-            const Path storagePath = actualStorageLocation();
-            const Path sourceRelativePath = actualFilePath(index);
-            const Path sourcePath = storagePath / sourceRelativePath;
-            const Path requestedTargetPath = storagePath / path;
-            const Path targetActualRelativePath = makeActualPath(index, path);
-            const Path targetActualPath = storagePath / targetActualRelativePath;
-
-            // The user-visible file path and libtorrent's actual storage path can differ
-            // (renamed files, content layout, .!qB, .unwanted). For a basename rename,
-            // also look beside the actual source path: that is the directory libtorrent
-            // will use when rechecking the original file.
-            const Path siblingTargetRelativePath = sourceRelativePath.parentPath() / Path(path.filename());
-            const Path siblingTargetPath = storagePath / siblingTargetRelativePath;
-            const Path siblingActualTargetRelativePath = sourceRelativePath.parentPath() / Path(targetActualRelativePath.filename());
-            const Path siblingActualTargetPath = storagePath / siblingActualTargetRelativePath;
-
-            const bool sourceExists = sourcePath.exists();
-            const bool requestedTargetExists = requestedTargetPath.exists();
-            const bool targetActualExists = targetActualPath.exists();
-            const bool siblingTargetExists = siblingTargetPath.exists();
-            const bool siblingActualTargetExists = siblingActualTargetPath.exists();
-
-            if (sourceExists)
-            {
-                const bool requestedTargetConflicts = (requestedTargetPath != sourcePath) && requestedTargetExists;
-                const bool actualTargetConflicts = (targetActualPath != sourcePath) && targetActualExists;
-                return (requestedTargetConflicts || actualTargetConflicts)
-                        ? FileRenamePreparationResult::TargetExists
-                        : FileRenamePreparationResult::Rename;
-            }
-
-            if (!requestedTargetExists && !targetActualExists
-                    && !siblingTargetExists && !siblingActualTargetExists)
-            {
-                return FileRenamePreparationResult::SourceMissing;
-            }
-
-            const auto isMatchingRegularFile = [this, index](const Path &candidate)
-            {
-                std::error_code error;
-                const std::filesystem::path fsPath = candidate.toStdFsPath();
-                if (!std::filesystem::is_regular_file(fsPath, error) || error)
-                    return false;
-
-                const std::uintmax_t size = std::filesystem::file_size(fsPath, error);
-                return !error && (size == static_cast<std::uintmax_t>(fileSize(index)));
-            };
-
-            Path remappedActualPath;
-            if (requestedTargetExists && isMatchingRegularFile(requestedTargetPath))
-                remappedActualPath = path;
-            else if (targetActualExists && isMatchingRegularFile(targetActualPath))
-                remappedActualPath = targetActualRelativePath;
-            else if (siblingTargetExists && isMatchingRegularFile(siblingTargetPath))
-                remappedActualPath = siblingTargetRelativePath;
-            else if (siblingActualTargetExists && isMatchingRegularFile(siblingActualTargetPath))
-                remappedActualPath = siblingActualTargetRelativePath;
-            else
-                return FileRenamePreparationResult::TargetExists;
-
-            const Path oldFilePath = m_filePaths.at(index);
-            const lt::file_index_t nativeIndex = m_torrentInfo.nativeIndexes().at(index);
-            const auto previousRenamedFiles = m_ltAddTorrentParams.renamed_files;
-
-            m_ltAddTorrentParams.renamed_files[nativeIndex] = remappedActualPath.toString().toStdString();
-            m_filePaths[index] = path;
-
-            try
-            {
-                reload();
-            }
-            catch (...)
-            {
-                m_ltAddTorrentParams.renamed_files = previousRenamedFiles;
-                m_filePaths[index] = oldFilePath;
-                throw;
-            }
-
-            emit fileRenamed(index, oldFilePath);
-            deferredRequestResumeData();
-            return FileRenamePreparationResult::Remapped;
-        }
 
         Path makeActualPath(int index, const Path &path) const;
         Path makeUserPath(const Path &path) const;
@@ -469,6 +379,7 @@ namespace BitTorrent
         TorrentContentLayout m_contentLayout = TorrentContentLayout::Original;
         bool m_hasFinishedStatus = false;
         bool m_hasMissingFiles = false;
+        bool m_missingFilesStateRecovered = false;
         bool m_hasFirstLastPiecePriority = false;
         bool m_useAutoTMM = false;
         bool m_isStopped = false;
