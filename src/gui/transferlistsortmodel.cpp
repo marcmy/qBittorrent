@@ -32,9 +32,11 @@
 
 #include <QtVersionChecks>
 #include <QDateTime>
+#include <QRegularExpression>
 
 #include "base/bittorrent/infohash.h"
 #include "base/bittorrent/torrent.h"
+#include "base/path.h"
 #include "transferlistmodel.h"
 
 namespace
@@ -314,8 +316,31 @@ bool TransferListSortModel::lessThan(const QModelIndex &left, const QModelIndex 
 
 bool TransferListSortModel::filterAcceptsRow(const int sourceRow, const QModelIndex &sourceParent) const
 {
-    return matchFilter(sourceRow, sourceParent)
-           && QSortFilterProxyModel::filterAcceptsRow(sourceRow, sourceParent);
+    if (!matchFilter(sourceRow, sourceParent))
+        return false;
+
+    if (filterKeyColumn() != TransferListModel::NB_COLUMNS)
+        return QSortFilterProxyModel::filterAcceptsRow(sourceRow, sourceParent);
+
+    const QRegularExpression filter = filterRegularExpression();
+    if (filter.pattern().isEmpty())
+        return true;
+
+    const auto *model = qobject_cast<TransferListModel *>(sourceModel());
+    if (!model)
+        return false;
+
+    const BitTorrent::Torrent *torrent = model->torrentHandle(model->index(sourceRow, 0, sourceParent));
+    if (!torrent)
+        return false;
+
+    for (const Path &filePath : torrent->filePaths())
+    {
+        if (filter.match(filePath.filename()).hasMatch())
+            return true;
+    }
+
+    return false;
 }
 
 bool TransferListSortModel::matchFilter(const int sourceRow, const QModelIndex &sourceParent) const
