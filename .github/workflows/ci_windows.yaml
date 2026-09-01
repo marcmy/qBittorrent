@@ -108,7 +108,7 @@ jobs:
           "sha=$sha" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Cache vcpkg binaries
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.vcpkg_binary_cache }}
           key: vcpkg-binaries-${{ runner.os }}-${{ env.vcpkg_triplet }}-${{ steps.vcpkg-revision.outputs.sha }}
@@ -140,7 +140,7 @@ jobs:
 
       - name: Cache Boost headers
         id: boost-cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.boost_path }}
           key: boost-windows-msvc-1.91.0
@@ -204,7 +204,7 @@ jobs:
 
       - name: Cache installed custom libtorrent
         id: libtorrent-cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.libtorrent_install_path }}
           key: libtorrent-windows-msvc-${{ env.vcpkg_triplet }}-boost1.91-webtorrent-${{ steps.libtorrent-revision.outputs.sha }}
@@ -341,7 +341,7 @@ jobs:
           path: upload
 
       - name: Install NSIS
-        uses: repolevedavaj/install-nsis@1ab2f7ba2fe9408db612029be0bb3c0088b0d3e9 # v1.2.1
+        uses: repolevedavaj/install-nsis@65a75ea79c3d1ddde868e98b7f9447e2e623401c # v1.3.0
         with:
           nsis-version: "3.12"
 
