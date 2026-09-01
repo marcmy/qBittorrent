@@ -7,17 +7,23 @@ on:
       - synchronize
       - reopened
       - ready_for_review
-    paths-ignore:
-      - "**/*.md"
-      - "doc/**"
-      - "docs/**"
+    paths:
+      - "src/**"
+      - "test/**"
+      - "cmake/**"
+      - "dist/**"
+      - "CMakeLists.txt"
+      - "build_dist.sh"
   push:
     branches:
       - custom/master
-    paths-ignore:
-      - "**/*.md"
-      - "doc/**"
-      - "docs/**"
+    paths:
+      - "src/**"
+      - "test/**"
+      - "cmake/**"
+      - "dist/**"
+      - "CMakeLists.txt"
+      - "build_dist.sh"
   workflow_dispatch:
     inputs:
       libtorrent_ref:
