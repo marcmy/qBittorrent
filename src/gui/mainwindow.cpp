@@ -288,6 +288,7 @@ MainWindow::MainWindow(IGUIApplication *app, const WindowState initialState, con
         const QString typeName = m_transferListWidget->getSourceModel()->headerData(type, Qt::Horizontal, Qt::DisplayRole).value<QString>();
         m_columnFilterComboBox->addItem(typeName, type);
     }
+    m_columnFilterComboBox->addItem(tr("Content"), TransferListModel::Column::NB_COLUMNS);
     connect(m_columnFilterComboBox, &QComboBox::currentIndexChanged, this, &MainWindow::applyTransferListFilter);
     connect(m_columnFilterEdit, &LineEdit::textUpdated, this, &MainWindow::applyTransferListFilter);
     connect(hSplitter, &QSplitter::splitterMoved, this, &MainWindow::saveSettings);

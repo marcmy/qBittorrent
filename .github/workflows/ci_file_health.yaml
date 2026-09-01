@@ -63,7 +63,7 @@ jobs:
           zizmor \
             --format sarif \
             --persona auditor \
-            ./ \
+            .github/workflows/ \
             | jq "(.runs[].results |= map(select($RESULT_FILTER)))
               | (.runs[].tool.driver.rules |= map(select($RULE_FILTER)))" \
             > "${{ runner.temp }}/zizmor_results.sarif"
