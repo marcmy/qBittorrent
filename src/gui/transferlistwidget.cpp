@@ -157,6 +157,7 @@ TransferListWidget::TransferListWidget(IGUIApplication *app, QWidget *parent)
     if (!columnLoaded)
     {
         setColumnHidden(TransferListModel::TR_CREATE_DATE, true);
+        setColumnHidden(TransferListModel::TR_AUTO_TMM, true);
         setColumnHidden(TransferListModel::TR_ADD_DATE, true);
         setColumnHidden(TransferListModel::TR_SEED_DATE, true);
         setColumnHidden(TransferListModel::TR_UPLIMIT, true);

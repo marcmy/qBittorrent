@@ -174,6 +174,7 @@ QVariant TransferListModel::headerData(const int section, const Qt::Orientation 
             case TR_CATEGORY: return tr("Category");
             case TR_TAGS: return tr("Tags");
             case TR_CREATE_DATE: return tr("Created On", "Torrent was initially created on 01/01/2010 08:00");
+            case TR_AUTO_TMM: return tr("Automatic", "Whether Automatic Torrent Management is enabled");
             case TR_ADD_DATE: return tr("Added On", "Torrent was added to transfer list on 01/01/2010 08:00");
             case TR_SEED_DATE: return tr("Completed On", "Torrent was completed on 01/01/2010 08:00");
             case TR_TRACKER: return tr("Tracker");
@@ -404,6 +405,8 @@ QString TransferListModel::displayValue(const BitTorrent::Torrent *torrent, cons
         return Utils::String::joinIntoString(torrent->tags(), u", "_s);
     case TR_CREATE_DATE:
         return QLocale().toString(torrent->creationDate().toLocalTime(), QLocale::ShortFormat);
+    case TR_AUTO_TMM:
+        return torrent->isAutoTMMEnabled() ? tr("Yes") : tr("No");
     case TR_ADD_DATE:
         return QLocale().toString(torrent->addedTime().toLocalTime(), QLocale::ShortFormat);
     case TR_SEED_DATE:
@@ -487,6 +490,8 @@ QVariant TransferListModel::internalValue(const BitTorrent::Torrent *torrent, co
         return QVariant::fromValue(torrent->tags());
     case TR_CREATE_DATE:
         return torrent->creationDate();
+    case TR_AUTO_TMM:
+        return torrent->isAutoTMMEnabled();
     case TR_ADD_DATE:
         return torrent->addedTime();
     case TR_SEED_DATE:
