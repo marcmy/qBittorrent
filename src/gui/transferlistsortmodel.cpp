@@ -320,7 +320,8 @@ bool TransferListSortModel::filterAcceptsRow(const int sourceRow, const QModelIn
     if (!matchFilter(sourceRow, sourceParent))
         return false;
 
-    if (filterKeyColumn() != TransferListModel::NB_COLUMNS)
+    const int filterColumn = filterKeyColumn();
+    if ((filterColumn >= 0) && (filterColumn < TransferListModel::NB_COLUMNS))
         return QSortFilterProxyModel::filterAcceptsRow(sourceRow, sourceParent);
 
     const QRegularExpression filter = filterRegularExpression();
@@ -331,9 +332,28 @@ bool TransferListSortModel::filterAcceptsRow(const int sourceRow, const QModelIn
     if (!model)
         return false;
 
+    if ((filterColumn != -1) && (filterColumn != TransferListModel::NB_COLUMNS))
+        return false;
+
     const BitTorrent::Torrent *torrent = model->torrentHandle(model->index(sourceRow, 0, sourceParent));
     if (!torrent)
         return false;
+
+    if (filterColumn == -1)
+    {
+        static constexpr TransferListModel::Column filterColumns[] = {
+            TransferListModel::TR_NAME,
+            TransferListModel::TR_SAVE_PATH,
+            TransferListModel::TR_INFOHASH_V1,
+            TransferListModel::TR_INFOHASH_V2};
+
+        for (const TransferListModel::Column column : filterColumns)
+        {
+            const QString value = model->index(sourceRow, column, sourceParent).data(filterRole()).toString();
+            if (filter.match(value).hasMatch())
+                return true;
+        }
+    }
 
     for (const Path &filePath : torrent->filePaths())
     {

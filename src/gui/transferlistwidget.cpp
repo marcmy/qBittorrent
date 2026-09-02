@@ -1383,7 +1383,7 @@ void TransferListWidget::applyAnnounceStatusFilter(const std::optional<BitTorren
     m_sortFilterModel->setAnnounceStatusFilter(announceStatus);
 }
 
-void TransferListWidget::applyFilter(const QString &name, const TransferListModel::Column &type)
+void TransferListWidget::applyFilter(const QString &name, const int type)
 {
     m_sortFilterModel->setFilterKeyColumn(type);
     const QString pattern = (Preferences::instance()->getRegexAsFilteringPatternForTransferList()

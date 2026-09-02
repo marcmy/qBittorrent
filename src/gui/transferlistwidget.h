@@ -97,7 +97,7 @@ public slots:
     void setTorrentOptions();
     void previewSelectedTorrents();
     void hideQueuePosColumn(bool hide);
-    void applyFilter(const QString &name, const TransferListModel::Column &type);
+    void applyFilter(const QString &name, int type);
     void applyStatusFilter(int filterIndex);
     void applyCategoryFilter(const QString &category);
     void applyTagFilter(const std::optional<Tag> &tag);

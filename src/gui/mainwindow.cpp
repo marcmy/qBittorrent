@@ -147,6 +147,7 @@ MainWindow::MainWindow(IGUIApplication *app, const WindowState initialState, con
     , m_preventTimer {new QTimer(this)}
     , m_storeExecutionLogEnabled {EXECUTIONLOG_SETTINGS_KEY(u"Enabled"_s)}
     , m_storeDownloadTrackerFavicon {SETTINGS_KEY(u"DownloadTrackerFavicon"_s)}
+    , m_storeTransferListFilterColumn {SETTINGS_KEY(u"TransferListFilterColumn"_s)}
     , m_storeExecutionLogTypes {EXECUTIONLOG_SETTINGS_KEY(u"Types"_s), Log::MsgType::ALL}
 #ifdef Q_OS_MACOS
     , m_badger {std::make_unique<MacUtils::Badger>()}
@@ -278,6 +279,7 @@ MainWindow::MainWindow(IGUIApplication *app, const WindowState initialState, con
 #endif
         tr("Transfers"));
     // Filter types
+    m_columnFilterComboBox->addItem(tr("All"), -1);
     const QList<TransferListModel::Column> filterTypes = {
         TransferListModel::Column::TR_NAME
         , TransferListModel::Column::TR_SAVE_PATH
@@ -286,10 +288,21 @@ MainWindow::MainWindow(IGUIApplication *app, const WindowState initialState, con
     for (const TransferListModel::Column type : filterTypes)
     {
         const QString typeName = m_transferListWidget->getSourceModel()->headerData(type, Qt::Horizontal, Qt::DisplayRole).value<QString>();
-        m_columnFilterComboBox->addItem(typeName, type);
+        m_columnFilterComboBox->addItem(typeName, static_cast<int>(type));
+        if (type == TransferListModel::Column::TR_NAME)
+            m_columnFilterComboBox->addItem(tr("Content"), static_cast<int>(TransferListModel::Column::NB_COLUMNS));
     }
-    m_columnFilterComboBox->addItem(tr("Content"), TransferListModel::Column::NB_COLUMNS);
-    connect(m_columnFilterComboBox, &QComboBox::currentIndexChanged, this, &MainWindow::applyTransferListFilter);
+
+    const int savedFilterColumn = m_storeTransferListFilterColumn.get(TransferListModel::Column::TR_NAME);
+    const int savedFilterIndex = m_columnFilterComboBox->findData(savedFilterColumn);
+    if (savedFilterIndex >= 0)
+        m_columnFilterComboBox->setCurrentIndex(savedFilterIndex);
+
+    connect(m_columnFilterComboBox, &QComboBox::currentIndexChanged, this, [this]
+    {
+        m_storeTransferListFilterColumn = m_columnFilterComboBox->currentData().toInt();
+        applyTransferListFilter();
+    });
     connect(m_columnFilterEdit, &LineEdit::textUpdated, this, &MainWindow::applyTransferListFilter);
     connect(hSplitter, &QSplitter::splitterMoved, this, &MainWindow::saveSettings);
     connect(m_splitter, &QSplitter::splitterMoved, this, &MainWindow::saveSplitterSettings);
@@ -1880,7 +1893,7 @@ void MainWindow::updatePowerManagementState() const
 
 void MainWindow::applyTransferListFilter()
 {
-    m_transferListWidget->applyFilter(m_columnFilterEdit->text(), m_columnFilterComboBox->currentData().value<TransferListModel::Column>());
+    m_transferListWidget->applyFilter(m_columnFilterEdit->text(), m_columnFilterComboBox->currentData().toInt());
 }
 
 void MainWindow::refreshWindowTitle()
