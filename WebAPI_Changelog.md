@@ -2,6 +2,8 @@
 
 ## 2.16.2
 
+* [#24842](https://github.com/qbittorrent/qBittorrent/pull/24842)
+  * Add JSON `rss/exportRules` and `rss/importRules` endpoints for RSS auto-download rules (`rss/importRules` accepts `POST` requests only)
 * [#24269](https://github.com/qbittorrent/qBittorrent/pull/24269)
   * Add `transfer/pauseSession` endpoint for pausing the session
   * Add `transfer/resumeSession` endpoint for resuming the session
