@@ -70,9 +70,15 @@ jobs:
               git checkout "$original_head" -- .github/workflows
             fi
 
+            # Keep the fork's pre-commit config coupled to the preserved
+            # workflow helper files instead of accepting upstream-only hooks.
+            if git cat-file -e "$original_head:.pre-commit-config.yaml" 2>/dev/null; then
+              git checkout "$original_head" -- .pre-commit-config.yaml
+            fi
+
             unresolved="$(git diff --name-only --diff-filter=U)"
             if [[ -n "$unresolved" ]]; then
-              echo "::error::Unresolved upstream merge conflicts remain outside .github/workflows:"
+              echo "::error::Unresolved upstream merge conflicts remain outside preserved fork CI files:"
               printf '%s\n' "$unresolved"
               exit 1
             fi
@@ -82,9 +88,9 @@ jobs:
               exit "$merge_status"
             fi
 
-            if ! git diff --quiet "$original_head" -- .github/workflows; then
-              echo "::error::Fork workflow files changed during the upstream merge."
-              git diff "$original_head" -- .github/workflows
+            if ! git diff --quiet "$original_head" -- .github/workflows .pre-commit-config.yaml; then
+              echo "::error::Preserved fork CI files changed during the upstream merge."
+              git diff "$original_head" -- .github/workflows .pre-commit-config.yaml
               exit 1
             fi
 
