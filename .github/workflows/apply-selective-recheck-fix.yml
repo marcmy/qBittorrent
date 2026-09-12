@@ -1,0 +1,40 @@
+name: Apply selective recheck fix
+
+on:
+  push:
+    branches:
+      - fix/selective-recheck-unwanted-path
+    paths:
+      - .github/workflows/apply-selective-recheck-fix.yml
+      - docs/selective-recheck-unwanted-fix.patch
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out fix branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/selective-recheck-unwanted-path
+          fetch-depth: 0
+          token: ${{ github.token }}
+          persist-credentials: true
+
+      - name: Apply patch and remove one-shot helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git apply --check docs/selective-recheck-unwanted-fix.patch
+          git apply docs/selective-recheck-unwanted-fix.patch
+          git rm docs/selective-recheck-unwanted-fix.patch
+          git rm .github/workflows/apply-selective-recheck-fix.yml
+
+          git add src/base/bittorrent/torrentimpl.cpp
+          git commit -m "fix: synchronize selective recheck file paths"
+          git push origin HEAD:refs/heads/fix/selective-recheck-unwanted-path
