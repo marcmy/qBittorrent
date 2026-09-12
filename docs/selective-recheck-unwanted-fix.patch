@@ -1,0 +1,86 @@
+diff --git a/src/base/bittorrent/torrentimpl.cpp b/src/base/bittorrent/torrentimpl.cpp
+--- a/src/base/bittorrent/torrentimpl.cpp
++++ b/src/base/bittorrent/torrentimpl.cpp
+@@ -1779,31 +1779,76 @@ void TorrentImpl::recheckFiles(const QList<int> &indexes
+         return;
+     }
+ 
+-    std::vector<lt::file_index_t> nativeIndexes;
+-    nativeIndexes.reserve(static_cast<std::size_t>(indexes.size()));
+-
++    QList<int> validIndexes;
++    validIndexes.reserve(indexes.size());
+     for (const int index : indexes)
+     {
+         if ((index < 0) || (index >= filesCount()))
+             continue;
+ 
+-        nativeIndexes.push_back(m_torrentInfo.nativeIndexes().at(index));
++        validIndexes.append(index);
+     }
+ 
+-    if (nativeIndexes.empty())
++    if (validIndexes.isEmpty())
+     {
+         if (progress)
+             progress(0, 0);
+         return;
+     }
+ 
++    // File-priority changes can asynchronously rename files into or out of
++    // .unwanted. Do not start a selective hash check against the old storage
++    // mapping while one of those renames (or a storage move) is still pending.
++    // Once it finishes, re-evaluate the selected files against their current
++    // priorities before starting the check.
++    if (isMoveInProgress() || !m_renamingFiles.isEmpty())
++    {
++        m_moveFinishedTriggers.enqueue(
++                [this, validIndexes = std::move(validIndexes), progress = std::move(progress)]() mutable
++        {
++            recheckFiles(validIndexes, std::move(progress));
++        });
++        return;
++    }
++
++    QList<int> indexesToRename;
++    indexesToRename.reserve(validIndexes.size());
++    for (const int index : asConst(validIndexes))
++    {
++        const Path expectedActualPath = makeActualPath(index, filePath(index));
++        if (actualFilePath(index) != expectedActualPath)
++            indexesToRename.append(index);
++    }
++
++    auto startRecheck = [this, validIndexes, progress = std::move(progress)]() mutable
++    {
++        std::vector<lt::file_index_t> nativeIndexes;
++        nativeIndexes.reserve(static_cast<std::size_t>(validIndexes.size()));
++        for (const int index : asConst(validIndexes))
++            nativeIndexes.push_back(m_torrentInfo.nativeIndexes().at(index));
++
+ #ifdef TORRENT_HAS_RECHECK_FILES_PROGRESS_CALLBACK
+-    m_nativeHandle.recheck_files(std::move(nativeIndexes), std::move(progress));
++        m_nativeHandle.recheck_files(std::move(nativeIndexes), std::move(progress));
+ #else
+-    m_nativeHandle.recheck_files(std::move(nativeIndexes));
+-    if (progress)
+-        progress(0, 0);
++        m_nativeHandle.recheck_files(std::move(nativeIndexes));
++        if (progress)
++            progress(0, 0);
+ #endif
++    };
++
++    if (!indexesToRename.isEmpty())
++    {
++        // The selected files must be checked where their *current* priority says
++        // they live: ignored files in .unwanted, wanted files at the normal path.
++        // Queue the recheck first so even very fast rename completion cannot race it.
++        m_moveFinishedTriggers.enqueue(std::move(startRecheck));
++        for (const int index : asConst(indexesToRename))
++            doRenameFile(index, makeActualPath(index, filePath(index)));
++        return;
++    }
++
++    startRecheck();
+ }
