@@ -34,7 +34,7 @@ jobs:
           exit-code: "0"
       - name: Upload findings to GitHub Security
         if: always()
-        uses: github/codeql-action/upload-sarif@v4.37.8
+        uses: github/codeql-action/upload-sarif@v4.38.2
         with:
           sarif_file: trivy-results.sarif
 
@@ -49,7 +49,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7.0.1
       - name: Generate SPDX SBOM with Syft
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           path: .
           format: spdx-json
