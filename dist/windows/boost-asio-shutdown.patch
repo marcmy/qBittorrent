@@ -1,0 +1,19 @@
+diff --git a/boost/asio/detail/impl/select_reactor.ipp b/boost/asio/detail/impl/select_reactor.ipp
+--- a/boost/asio/detail/impl/select_reactor.ipp
++++ b/boost/asio/detail/impl/select_reactor.ipp
+@@ -353,8 +353,15 @@ void select_reactor::do_remove_timer_queue(timer_queue_base& queue)
+ timeval* select_reactor::get_timeout(long usec, timeval& tv)
+ {
++#if defined(BOOST_ASIO_HAS_IOCP)
++  // A lost loopback interrupter wake-up must not stall shutdown for minutes.
++  // The helper checks stop_thread_ after select returns; keep a bounded
++  // fallback without bypassing any outstanding operations or thread joins.
++  const long max_usec = 1000 * 1000;
++#else
+   // By default we will wait no longer than 5 minutes. This will ensure that
+   // any changes to the system clock are detected after no longer than this.
+   const long max_usec = 5 * 60 * 1000 * 1000;
++#endif
+   usec = timer_queues_.wait_duration_usec(
+       (usec < 0 || max_usec < usec) ? max_usec : usec);
+   tv.tv_sec = usec / 1000000;

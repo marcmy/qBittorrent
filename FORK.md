@@ -63,6 +63,22 @@ A distributable custom build should make the following recoverable:
 
 Never assume that a binary reporting only `libtorrent 2.1.0.0` uniquely identifies the engine source.
 
+## Windows Boost.Asio shutdown patch
+
+The Windows packaging workflow applies `dist/windows/boost-asio-shutdown.patch`
+to Boost 1.91.0 before compiling either libtorrent or qBittorrent. It bounds the
+IOCP select helper's fallback wait to one second when its loopback wake-up is
+lost. Normal wake-ups, pending operations, disk cleanup and thread joins remain
+intact. The tradeoff is at most one idle select timeout per second per helper.
+Non-IOCP platforms keep Boost's original timeout.
+
+The workflow tests a dropped wake-up against both unpatched and patched
+headers, plus normal socket/timer operation and idle CPU time. Patch application
+fails if a dependency update changes the expected source, and both dependency
+caches include the patch revision. The patch revision is recorded in
+`build-info.txt`. This is a dependency packaging fix; no engine API or
+qBittorrent shutdown policy changes are required.
+
 ## Working method
 
 1. Reproduce and trace the behavior across the qBittorrent/libtorrent boundary.
