@@ -9,6 +9,7 @@ caf = "caf"
 Categor = "Categor"
 curren = "curren"
 FO = "FO"
+Fo = "Fo" # MSVC object-file output option
 ket = "ket"
 Q_INVOKABLE = "Q_INVOKABLE"
 switchs = "switchs"

@@ -14,6 +14,8 @@ on:
       - "dist/**"
       - "CMakeLists.txt"
       - "build_dist.sh"
+      - ".github/workflows/ci_windows.yaml"
+      - ".github/scripts/*asio*.ps1"
   push:
     branches:
       - custom/master
@@ -24,6 +26,8 @@ on:
       - "dist/**"
       - "CMakeLists.txt"
       - "build_dist.sh"
+      - ".github/workflows/ci_windows.yaml"
+      - ".github/scripts/*asio*.ps1"
   workflow_dispatch:
     inputs:
       libtorrent_ref:
@@ -143,7 +147,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.boost_path }}
-          key: boost-windows-msvc-1.91.0
+          key: boost-windows-msvc-1.91.0-asio-shutdown-v1
 
       - name: Install Boost
         if: steps.boost-cache.outputs.cache-hit != 'true'
@@ -167,6 +171,14 @@ jobs:
             toolset=msvc `
             --stagedir=.\ `
             --with-headers
+
+      - name: Patch Boost.Asio shutdown fallback
+        shell: pwsh
+        run: ./.github/scripts/patch-boost-asio.ps1 -BoostRoot "${{ env.boost_path }}"
+
+      - name: Test Boost.Asio shutdown with a dropped wake-up
+        shell: pwsh
+        run: ./.github/scripts/test-asio-shutdown.ps1 -BoostRoot "${{ env.boost_path }}"
 
       - name: Install Qt
         uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
@@ -207,7 +219,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.libtorrent_install_path }}
-          key: libtorrent-windows-msvc-${{ env.vcpkg_triplet }}-boost1.91-webtorrent-${{ steps.libtorrent-revision.outputs.sha }}
+          key: libtorrent-windows-msvc-${{ env.vcpkg_triplet }}-boost1.91-asio-shutdown-v1-webtorrent-${{ steps.libtorrent-revision.outputs.sha }}
 
       - name: Build and install custom libtorrent
         if: steps.libtorrent-cache.outputs.cache-hit != 'true'
@@ -324,6 +336,7 @@ jobs:
             "configuration: RelWithDebInfo",
             "Qt: 6.10.3",
             "Boost: 1.91.0",
+            "Boost.Asio patch: windows-iocp-shutdown-fallback-v1 (1 second)",
             "WebTorrent: enabled"
           ) | Set-Content -Path upload/qBittorrent/build-info.txt
 
