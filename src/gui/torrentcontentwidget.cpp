@@ -41,6 +41,7 @@
 #include <QMessageBox>
 #include <QMetaObject>
 #include <QModelIndexList>
+#include <QOverload>
 #include <QPointer>
 #include <QProgressDialog>
 #include <QSet>
