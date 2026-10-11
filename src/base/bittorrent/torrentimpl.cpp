@@ -1290,7 +1290,8 @@ TorrentState TorrentImpl::state() const
 
 void TorrentImpl::updateState()
 {
-    if (m_nativeStatus.state == lt::torrent_status::checking_resume_data)
+    if ((m_nativeStatus.state == lt::torrent_status::checking_resume_data)
+            && !m_hasMissingFiles && !hasError())
     {
         m_state = TorrentState::CheckingResumeData;
     }
@@ -2053,7 +2054,7 @@ void TorrentImpl::reload()
                 | lt::torrent_flags::override_web_seeds;
 #endif
 
-        if (m_isStopped)
+        if (m_isStopped || m_hasMissingFiles)
         {
             p.flags |= lt::torrent_flags::paused;
             p.flags &= ~lt::torrent_flags::auto_managed;
@@ -2471,12 +2472,24 @@ void TorrentImpl::handleFastResumeRejected(const bool recoverableFileMismatch)
     m_hasMissingFiles = true;
     m_missingFilesStateRecovered = false;
 
+    // Block every rejection before attempting recovery, including I/O errors
+    // and unavailable storage. Never let a rejected seed start downloading.
+    setAutoManaged(false);
+    m_nativeHandle.pause();
+
     // Only a missing/short-file rejection is safe to recover selectively.
     // Other fast-resume failures keep the established full-recovery behavior.
     if (!recoverableFileMismatch)
         return;
 
     if (!hasMetadata())
+        return;
+
+    // An offline share can report missing files for the whole torrent. Leave
+    // its original completion map intact until the storage is reachable.
+    const Path storagePath = actualStorageLocation();
+    std::error_code storageError;
+    if (!std::filesystem::is_directory(storagePath.toStdFsPath(), storageError))
         return;
 
     const int pieceCount = piecesCount();
@@ -2510,7 +2523,6 @@ void TorrentImpl::handleFastResumeRejected(const bool recoverableFileMismatch)
 
     bool recoveredMissingFile = false;
     bool unsafeStorageError = false;
-    const Path storagePath = actualStorageLocation();
 
     for (int fileIndex = 0; fileIndex < filesCount(); ++fileIndex)
     {
@@ -3040,7 +3052,9 @@ void TorrentImpl::updateProgress()
         }
     }
 
-    if (!isFinished())
+    // Unverified or inaccessible storage cannot invalidate the saved finished
+    // marker. Selective missing-file recovery clears it explicitly when needed.
+    if (!m_hasMissingFiles && !isChecking() && !isFinished())
         m_hasFinishedStatus = false;
 }
 
