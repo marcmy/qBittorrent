@@ -315,6 +315,7 @@ namespace BitTorrent
 
         Path makeActualPath(int index, const Path &path) const;
         Path makeUserPath(const Path &path) const;
+        bool shouldUseDownloadPath() const;
         void adjustStorageLocation();
         void moveStorage(const Path &newPath, MoveStorageContext context);
         void manageActualFilePaths();
@@ -378,6 +379,7 @@ namespace BitTorrent
         TorrentOperatingMode m_operatingMode = TorrentOperatingMode::AutoManaged;
         TorrentContentLayout m_contentLayout = TorrentContentLayout::Original;
         bool m_hasFinishedStatus = false;
+        bool m_hasFinishedStorage = false;
         bool m_hasMissingFiles = false;
         bool m_missingFilesStateRecovered = false;
         bool m_hasFirstLastPiecePriority = false;

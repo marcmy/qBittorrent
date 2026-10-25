@@ -288,6 +288,16 @@ jobs:
             throw "qBittorrent tests failed with exit code $LASTEXITCODE"
           }
 
+      - name: Test completed torrent storage
+        run: |
+          python -u test/completed_storage.py `
+            --exe build/qbittorrent.exe `
+            --root "${{ runner.temp }}/qbittorrent-completed-storage-${{ github.run_id }}-${{ github.run_attempt }}"
+          if ($LASTEXITCODE -ne 0)
+          {
+            throw "Completed storage regression failed with exit code $LASTEXITCODE"
+          }
+
       - name: Show sccache stats
         if: always()
         continue-on-error: true
