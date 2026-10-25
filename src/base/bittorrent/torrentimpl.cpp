@@ -324,6 +324,7 @@ TorrentImpl::TorrentImpl(SessionImpl *session, const lt::torrent_handle &nativeH
     , m_operatingMode {params.operatingMode}
     , m_contentLayout {params.contentLayout}
     , m_hasFinishedStatus {params.hasFinishedStatus}
+    , m_hasFinishedStorage {params.hasFinishedStorage || params.hasFinishedStatus}
     , m_hasFirstLastPiecePriority {params.firstLastPiecePriority}
     , m_useAutoTMM {params.useAutoTMM}
     , m_isStopped {params.stopped}
@@ -391,6 +392,11 @@ TorrentImpl::TorrentImpl(SessionImpl *session, const lt::torrent_handle &nativeH
     for (const std::string &urlSeed : extensionData->urlSeeds)
         m_urlSeeds.append(QString::fromStdString(urlSeed));
     m_nativeStatus = extensionData->status;
+
+    // Existing content in the final save path must stay there, including when
+    // upgrading resume data that predates the separate storage-stage flag.
+    if (Path(m_nativeStatus.save_path) == savePath())
+        m_hasFinishedStorage = true;
 
     m_addedTime = QDateTime::fromSecsSinceEpoch(m_nativeStatus.added_time);
     if (m_nativeStatus.completed_time > 0)
@@ -522,7 +528,7 @@ void TorrentImpl::setSavePath(const Path &path)
     if (resolvedPath == savePath())
         return;
 
-    if (isFinished() || m_hasFinishedStatus || downloadPath().isEmpty())
+    if (!shouldUseDownloadPath())
     {
         moveStorage(resolvedPath, MoveStorageContext::ChangeSavePath);
     }
@@ -551,8 +557,7 @@ void TorrentImpl::setDownloadPath(const Path &path)
     if (resolvedPath == m_downloadPath)
         return;
 
-    const bool isIncomplete = !(isFinished() || m_hasFinishedStatus);
-    if (isIncomplete)
+    if (shouldUseDownloadPath())
     {
         moveStorage((resolvedPath.isEmpty() ? savePath() : resolvedPath), MoveStorageContext::ChangeDownloadPath);
     }
@@ -2236,6 +2241,8 @@ void TorrentImpl::handleMoveStorageJobFinished(const Path &path, const MoveStora
         m_downloadPath = path;
     m_storageIsMoving = hasOutstandingJob;
     m_nativeStatus.save_path = path.toString().toStdString();
+    if (path == savePath())
+        m_hasFinishedStorage = true;
 
     m_session->handleTorrentSavePathChanged(this);
     deferredRequestResumeData();
@@ -2455,6 +2462,7 @@ void TorrentImpl::prepareResumeData(lt::add_torrent_params params)
         .useAutoTMM = m_useAutoTMM,
         .firstLastPiecePriority = m_hasFirstLastPiecePriority,
         .hasFinishedStatus = m_hasFinishedStatus,
+        .hasFinishedStorage = m_hasFinishedStorage,
         .stopped = m_isStopped,
         .stopCondition = m_stopCondition,
         .addToQueueTop = false,
@@ -2864,10 +2872,22 @@ void TorrentImpl::manageActualFilePaths()
     }
 }
 
+bool TorrentImpl::shouldUseDownloadPath() const
+{
+    return !m_hasFinishedStorage && !m_hasFinishedStatus && !isFinished() && !downloadPath().isEmpty();
+}
+
 void TorrentImpl::adjustStorageLocation()
 {
-    const Path downloadPath = this->downloadPath();
-    const Path targetPath = ((isFinished() || m_hasFinishedStatus || downloadPath.isEmpty()) ? savePath() : downloadPath);
+    // Completion status can change after a recheck or file selection. Storage
+    // promotion is permanent: repairs and additional files use the final path.
+    if (!m_hasFinishedStorage && (isFinished() || m_hasFinishedStatus))
+    {
+        m_hasFinishedStorage = true;
+        deferredRequestResumeData();
+    }
+
+    const Path targetPath = shouldUseDownloadPath() ? downloadPath() : savePath();
 
     if ((targetPath != actualStorageLocation()) || isMoveInProgress())
         moveStorage(targetPath, MoveStorageContext::AdjustCurrentLocation);

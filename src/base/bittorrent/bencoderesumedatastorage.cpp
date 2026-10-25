@@ -244,6 +244,7 @@ BitTorrent::LoadResumeDataResult BitTorrent::BencodeResumeDataStorage::loadTorre
     torrentParams.name = fromLTString(resumeDataRoot.dict_find_string_value("qBt-name"));
     torrentParams.comment = fromLTString(resumeDataRoot.dict_find_string_value("qBt-comment"));
     torrentParams.hasFinishedStatus = resumeDataRoot.dict_find_int_value("qBt-seedStatus");
+    torrentParams.hasFinishedStorage = resumeDataRoot.dict_find_int_value("qBt-finishedStorage");
     torrentParams.firstLastPiecePriority = resumeDataRoot.dict_find_int_value("qBt-firstLastPiecePriority");
 
     const lt::string_view ratioLimitString = resumeDataRoot.dict_find_string_value("qBt-ratioLimit");
@@ -463,6 +464,7 @@ void BitTorrent::BencodeResumeDataStorage::Worker::store(const TorrentID &id, co
     data["qBt-name"] = resumeData.name.toStdString();
     data["qBt-comment"] = resumeData.comment.toStdString();
     data["qBt-seedStatus"] = resumeData.hasFinishedStatus;
+    data["qBt-finishedStorage"] = resumeData.hasFinishedStorage;
     data["qBt-contentLayout"] = Utils::String::fromEnum(resumeData.contentLayout).toStdString();
     data["qBt-firstLastPiecePriority"] = resumeData.firstLastPiecePriority;
     data["qBt-stopCondition"] = Utils::String::fromEnum(resumeData.stopCondition).toStdString();
