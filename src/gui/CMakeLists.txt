@@ -137,6 +137,7 @@ add_library(qbt_gui STATIC
     transferlistfilterswidgetitem.h
     transferlistmodel.h
     transferlistsortmodel.h
+    transferlistview.h
     transferlistwidget.h
     trayiconstyle.h
     tristateaction.h
