@@ -39,3 +39,12 @@ foreach(testFile ${testFiles})
 
     add_dependencies(check "${testFilename}")
 endforeach()
+
+if (GUI)
+    find_package(Qt6 REQUIRED COMPONENTS Widgets)
+    add_executable(testtransferlistview testtransferlistview.cpp)
+    target_link_libraries(testtransferlistview PRIVATE Qt::Test Qt::Widgets)
+    add_test(NAME testtransferlistview COMMAND testtransferlistview)
+    set_tests_properties(testtransferlistview PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    add_dependencies(check testtransferlistview)
+endif()

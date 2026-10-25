@@ -32,11 +32,11 @@
 #include <functional>
 
 #include <QtContainerFwd>
-#include <QTreeView>
 
 #include "base/bittorrent/infohash.h"
 #include "guiapplicationcomponent.h"
 #include "transferlistmodel.h"
+#include "transferlistview.h"
 
 class Path;
 class TransferListSortModel;
@@ -52,7 +52,7 @@ enum class CopyInfohashPolicy
     Version2
 };
 
-class TransferListWidget final : public GUIApplicationComponent<QTreeView>
+class TransferListWidget final : public GUIApplicationComponent<TransferListView>
 {
     Q_OBJECT
     Q_DISABLE_COPY_MOVE(TransferListWidget)
