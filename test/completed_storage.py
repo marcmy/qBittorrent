@@ -150,7 +150,13 @@ class Client:
     def connect(self, seed):
         self.api("torrents/addPeers", {"hashes": self.hash, "peers": f"127.0.0.1:{seed.peer_port}"})
 
-    def recheck(self):
+    def recheck(self, has_data=False):
+        if has_data:
+            # A restart can expose a torrent before its initial resume check has
+            # imported its piece map. The engine ignores force_recheck() while
+            # that initialization is pending, so wait for the real pieces first.
+            self.wait(lambda rows: len(rows) == 1 and rows[0]["pieces_have"] > 0 and not any(
+                word in rows[0]["state"].lower() for word in ("checking", "moving")), "loaded piece map")
         self.command("stop")
         self.command("recheck")
         # Rechecking a stopped torrent starts it with FilesChecked as its stop
@@ -158,7 +164,7 @@ class Client:
         # the displayed state/progress may still describe the preceding check.
         stopped_query = "torrents/info?filter=stopped&hashes=" + self.hash
         self.wait(lambda rows: bool(json.loads(self.api(stopped_query))), "recheck stop condition")
-        return self.wait(lambda rows: len(rows) == 1 and not any(
+        return self.wait(lambda rows: len(rows) == 1 and (not has_data or rows[0]["pieces_have"] > 0) and not any(
             word in rows[0]["state"].lower() for word in ("checking", "moving")), "recheck storage settled")[0]
 
 
@@ -223,7 +229,7 @@ def run_case(executable, root, backend, baseline):
         complete()
         retained()
         record("initial-completion")
-        client.recheck()
+        client.recheck(has_data=True)
         retained()
         record("complete-recheck")
         client.close()
@@ -247,7 +253,7 @@ def run_case(executable, root, backend, baseline):
             part.unlink()
         client.launch()
         client.wait(lambda rows: len(rows) == 1, "restart without part file")
-        row = client.recheck()
+        row = client.recheck(has_data=True)
         record("part-file-removed-recheck")
         if baseline:
             assert (client.temporary / name / "keep.bin").exists(), "Baseline did not reproduce backward move"
@@ -258,7 +264,7 @@ def run_case(executable, root, backend, baseline):
         retained()
         client.priority(1, 1)
         client.wait(lambda rows: rows[0]["progress"] < 1, "newly selected file is incomplete")
-        client.recheck()
+        client.recheck(has_data=True)
         retained()
         record("select-previously-ignored-file")
         client.api("torrents/setAutoManagement", {"hashes": client.hash, "enable": "true"})
@@ -285,7 +291,7 @@ def run_case(executable, root, backend, baseline):
         client.launch()
         client.wait(lambda rows: len(rows) == 1 and (client.final / name / "anchor.bin").exists(),
                     "restart into new automatically managed final folder")
-        client.recheck()
+        client.recheck(has_data=True)
         retained()
         record("incomplete-restart-and-recheck")
         client.api("torrents/setAutoManagement", {"hashes": client.hash, "enable": "false"})
