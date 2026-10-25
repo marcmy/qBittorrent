@@ -7,13 +7,14 @@ import hashlib
 import json
 import os
 import re
-from pathlib import Path
 import socket
 import sqlite3
-import subprocess
+# The regression launches only its explicitly supplied qBittorrent test build.
+import subprocess  # nosec B404
 import time
 import urllib.parse
 import urllib.request
+from pathlib import Path
 
 
 def bencode(value):
@@ -104,7 +105,8 @@ class Client:
             startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             startup.wShowWindow = 0
             options["startupinfo"] = startup
-        self.process = subprocess.Popen([
+        # Fixed argument vector and no shell; the executable is supplied by CI.
+        self.process = subprocess.Popen([  # nosec B603
             str(self.executable), "--profile=" + str(self.profile),
             "--webui-port=" + str(self.port), "--torrenting-port=" + str(self.peer_port),
             "--no-splash", "--confirm-legal-notice"],
@@ -163,10 +165,12 @@ def run_case(executable, root, backend, baseline):
     name = "generated-storage-fixture"
     files = {"keep.bin": b"a" * 24576, "later.bin": b"b" * 40960, "anchor.bin": b"c" * 32768}
     content = b"".join(files.values())
-    metainfo = bencode({b"info": {b"name": name.encode(), b"private": 1,
-        b"piece length": 16384, b"pieces": b"".join(hashlib.sha1(content[i:i+16384]).digest()
-        for i in range(0, len(content), 16384)), b"files": [
-            {b"length": len(data), b"path": [filename.encode()]} for filename, data in files.items()]}})
+    piece_hashes = b"".join(hashlib.sha1(content[i:i+16384], usedforsecurity=False).digest()
+                            for i in range(0, len(content), 16384))
+    metainfo = bencode({b"info": {
+        b"name": name.encode(), b"private": 1, b"piece length": 16384, b"pieces": piece_hashes,
+        b"files": [{b"length": len(data), b"path": [filename.encode()]} for filename, data in files.items()]
+    }})
     for filename, data in files.items():
         destination = seed.final / name / filename
         destination.parent.mkdir(exist_ok=True)
@@ -270,7 +274,8 @@ def run_case(executable, root, backend, baseline):
         client.final = client.root / "second-final"
         client.final.mkdir()
         config = client.profile / "qBittorrent" / "config" / "qBittorrent.ini"
-        settings, count = re.subn(r"(?m)^Session\\DefaultSavePath=.*$",
+        settings, count = re.subn(
+            r"(?m)^Session\\DefaultSavePath=.*$",
             lambda match: "Session\\DefaultSavePath=" + client.final.as_posix(), config.read_text())
         assert count == 1, settings
         config.write_text(settings, encoding="utf-8")
