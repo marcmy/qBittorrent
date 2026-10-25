@@ -151,12 +151,15 @@ class Client:
         self.api("torrents/addPeers", {"hashes": self.hash, "peers": f"127.0.0.1:{seed.peer_port}"})
 
     def recheck(self):
+        self.command("stop")
         self.command("recheck")
-        # The fixture is only six pieces. Wait through the asynchronous alert
-        # delivery, then require both checking and any resulting move to finish.
-        time.sleep(1)
+        # Rechecking a stopped torrent starts it with FilesChecked as its stop
+        # condition. The API's stopped filter reads isStopped() directly, while
+        # the displayed state/progress may still describe the preceding check.
+        stopped_query = "torrents/info?filter=stopped&hashes=" + self.hash
+        self.wait(lambda rows: bool(json.loads(self.api(stopped_query))), "recheck stop condition")
         return self.wait(lambda rows: len(rows) == 1 and not any(
-            word in rows[0]["state"].lower() for word in ("checking", "moving")), "recheck finished")[0]
+            word in rows[0]["state"].lower() for word in ("checking", "moving")), "recheck storage settled")[0]
 
 
 def run_case(executable, root, backend, baseline):
