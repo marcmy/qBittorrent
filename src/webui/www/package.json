@@ -19,7 +19,7 @@
     "eslint-plugin-qbt-webui": "https://github.com/Chocobo1/eslint-plugin-qbt-webui/tarball/v1",
     "eslint-plugin-regexp": "*",
     "eslint-plugin-unicorn": "*",
-    "happy-dom": "20.10.6",
+    "happy-dom": "21.0.4",
     "html-validate": "*",
     "js-beautify": "*",
     "prettier": "*",
