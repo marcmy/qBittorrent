@@ -5,8 +5,6 @@ updates:
     directory: "/"
     commit-message:
       prefix: "GHA CI"
-    cooldown:
-      default-days: 7
     groups:
       GHA_CI-dependency-update:
         patterns:
@@ -23,8 +21,6 @@ updates:
     directory: "/"
     commit-message:
       prefix: "GHA CI"
-    cooldown:
-      default-days: 7
     groups:
       GHA_CI-dependency-update:
         patterns:
