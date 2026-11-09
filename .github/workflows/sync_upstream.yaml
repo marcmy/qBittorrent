@@ -88,9 +88,9 @@ jobs:
               raise SystemExit("Upstream already defines finishedStorage; review merge manually")
           edits = [
               ('    torrentParams.hasFinishedStatus = resumeDataRoot.dict_find_int_value("qBt-seedStatus");',
-               '    torrentParams.hasFinishedStatus = resumeDataRoot.dict_find_int_value("qBt-seedStatus");\n    torrentParams.hasFinishedStorage = resumeDataRoot.dict_find_int_value("qBt-finishedStorage");'),
+                '    torrentParams.hasFinishedStatus = resumeDataRoot.dict_find_int_value("qBt-seedStatus");\n    torrentParams.hasFinishedStorage = resumeDataRoot.dict_find_int_value("qBt-finishedStorage");'),
               ('        data["qBt-seedStatus"] = m_resumeData.hasFinishedStatus;',
-               '        data["qBt-seedStatus"] = m_resumeData.hasFinishedStatus;\n        data["qBt-finishedStorage"] = m_resumeData.hasFinishedStorage;'),
+                '        data["qBt-seedStatus"] = m_resumeData.hasFinishedStatus;\n        data["qBt-finishedStorage"] = m_resumeData.hasFinishedStorage;'),
           ]
           for before, after in edits:
               if content.count(before) != 1:
