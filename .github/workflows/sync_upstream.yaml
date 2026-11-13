@@ -25,6 +25,8 @@ jobs:
     name: Merge qBittorrent master
     if: github.event_name != 'repository_dispatch' || github.event.action == 'libtorrent-upstream-synced'
     runs-on: ubuntu-latest
+    # Dedicated environment for the sync token used when opening conflict PRs.
+    environment: upstream-sync
 
     permissions:
       actions: write
