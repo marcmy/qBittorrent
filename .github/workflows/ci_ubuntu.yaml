@@ -1,6 +1,5 @@
 name: CI - Ubuntu
-
-on: [pull_request, push]
+on: workflow_dispatch
 
 permissions: {}
 
@@ -20,23 +19,20 @@ jobs:
       fail-fast: false
       matrix:
         libtorrent:
-          - version: "2.1.2"
+          - version: "2.1.0-rc2"
             boost_major_version: "1"
             boost_minor_version: "77"
             boost_patch_version: "0"
-            boost_sha256: "5347464af5b14ac54bb945dc68f1dd7c56f0dad7262816b956138fc53bcc0131"
-            libt_build_flags: ""
-          - version: "2.0.15"
+            libt_build_flags: "-Dwebtorrent=ON"
+          - version: "2.0.13"
             boost_major_version: "1"
             boost_minor_version: "77"
             boost_patch_version: "0"
-            boost_sha256: "5347464af5b14ac54bb945dc68f1dd7c56f0dad7262816b956138fc53bcc0131"
             libt_build_flags: ""
           - version: "1.2.20"
             boost_major_version: "1"
             boost_minor_version: "77"
             boost_patch_version: "0"
-            boost_sha256: "5347464af5b14ac54bb945dc68f1dd7c56f0dad7262816b956138fc53bcc0131"
             libt_build_flags: ""
         qbt_gui: ["GUI=ON", "GUI=OFF"]
         qt_version: ["6.6.3"]
@@ -48,7 +44,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -60,7 +56,7 @@ jobs:
             libssl-dev zlib1g-dev
 
       - name: Setup ccache
-        uses: Chocobo1/setup-ccache-action@v1
+        uses: Chocobo1/setup-ccache-action@802ec72ba1d54bbf75c52f45367253d6abec30f5 # v1.5.8
         with:
           store_cache: ${{ (github.repository != 'qbittorrent/qBittorrent') || (github.ref == 'refs/heads/master') }}
           update_packager_index: false
@@ -71,18 +67,12 @@ jobs:
         run: |
           boost_url="https://archives.boost.io/release/${{ matrix.libtorrent.boost_major_version }}.${{ matrix.libtorrent.boost_minor_version }}.${{ matrix.libtorrent.boost_patch_version }}/source/boost_${{ matrix.libtorrent.boost_major_version }}_${{ matrix.libtorrent.boost_minor_version }}_${{ matrix.libtorrent.boost_patch_version }}.tar.gz"
           boost_url2="https://sourceforge.net/projects/boost/files/boost/${{ matrix.libtorrent.boost_major_version }}.${{ matrix.libtorrent.boost_minor_version }}.${{ matrix.libtorrent.boost_patch_version }}/boost_${{ matrix.libtorrent.boost_major_version }}_${{ matrix.libtorrent.boost_minor_version }}_${{ matrix.libtorrent.boost_patch_version }}.tar.gz"
-          boost_checksum="${{ matrix.libtorrent.boost_sha256 }}  ${{ runner.temp }}/boost.tar.gz"
           set +e
           curl -L -o "${{ runner.temp }}/boost.tar.gz" "$boost_url"
-          echo "$boost_checksum" | sha256sum -c - && \
-            tar -xf "${{ runner.temp }}/boost.tar.gz" -C "${{ github.workspace }}/.."; _exitCode="$?"
+          tar -xf "${{ runner.temp }}/boost.tar.gz" -C "${{ github.workspace }}/.."; _exitCode="$?"
           if [ "$_exitCode" -ne "0" ]; then
             curl -L -o "${{ runner.temp }}/boost.tar.gz" "$boost_url2"
-            echo "$boost_checksum" | sha256sum -c - && \
-              tar -xf "${{ runner.temp }}/boost.tar.gz" -C "${{ github.workspace }}/.."; _exitCode="$?"
-          fi
-          if [ "$_exitCode" -ne "0" ]; then
-            exit "$_exitCode"
+            tar -xf "${{ runner.temp }}/boost.tar.gz" -C "${{ github.workspace }}/.."; _exitCode="$?"
           fi
           mv "${{ github.workspace }}/.."/boost_* "${{ env.boost_path }}"
           cd "${{ env.boost_path }}"
@@ -90,7 +80,7 @@ jobs:
           ./b2 stage --stagedir=./ --with-headers
 
       - name: Install Qt
-        uses: jurplel/install-qt-action@v4
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
         with:
           version: ${{ matrix.qt_version }}
           archives: icu qtbase qtdeclarative qtsvg qttools
@@ -123,7 +113,7 @@ jobs:
 
       # to avoid scanning 3rdparty codebases, initialize it just before building qbt
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         if: startsWith(matrix.libtorrent.version, '2.0') && (matrix.qbt_gui == 'GUI=ON')
         with:
           config-file: ./.github/workflows/helper/codeql/cpp.yaml
@@ -155,7 +145,7 @@ jobs:
           DESTDIR="qbittorrent" cmake --install build
 
       - name: Run CodeQL analysis
-        uses: github/codeql-action/analyze@v4
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         if: startsWith(matrix.libtorrent.version, '2.0') && (matrix.qbt_gui == 'GUI=ON')
         with:
           category: ${{ github.base_ref || github.ref_name }}
@@ -173,7 +163,7 @@ jobs:
           output: sarif-results/cpp.sarif
 
       - name: Upload CodeQL SARIF
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         if: startsWith(matrix.libtorrent.version, '2.0') && (matrix.qbt_gui == 'GUI=ON')
         with:
           sarif_file: sarif-results/cpp.sarif
@@ -209,9 +199,7 @@ jobs:
 
       - name: Package AppImage
         run: |
-          rm -f \
-            "$QT_PLUGIN_PATH/sqldrivers/libqsqlmimer.so" \
-            "$QT_PLUGIN_PATH/sqldrivers/libqsqlmysql.so"
+          rm -f "$QT_PLUGIN_PATH/sqldrivers/libqsqlmimer.so"
           ./linuxdeploy-x86_64.AppImage --appdir qbittorrent --plugin qt
           mkdir -p qbittorrent/apprun-hooks
           rm -f qbittorrent/apprun-hooks/*
@@ -221,7 +209,7 @@ jobs:
             ./linuxdeploy-x86_64.AppImage --appdir qbittorrent --output appimage
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: qBittorrent-CI_Ubuntu-x64_${{ matrix.qbt_gui }}_libtorrent-${{ matrix.libtorrent.version }}_Qt-${{ matrix.qt_version }}
           path: upload

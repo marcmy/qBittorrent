@@ -46,12 +46,12 @@ repos:
         - svg
         - ts
 
-  - repo: https://github.com/rvben/rumdl-pre-commit.git
-    rev: v0.3.2
+  - repo: https://github.com/igorshubovych/markdownlint-cli.git
+    rev: v0.50.0
     hooks:
-    - id: rumdl
+    - id: markdownlint
       name: Check Markdown files
-      args: ["--config", ".github/workflows/helper/pre-commit/.rumdl.toml", "--fix"]
+      args: ["--config", ".github/workflows/helper/pre-commit/.markdownlint.yaml"]
       exclude: |
         (?x)^(
           doc/.*/qbittorrent\.1\.md |
@@ -78,14 +78,13 @@ repos:
           dist/windows/installer-translations/.* |
           src/base/3rdparty/.* |
           src/searchengine/nova3/socks.py |
-          src/webui/www/package-lock\.json |
           src/webui/www/private/scripts/lib/.*
         )$
       exclude_types:
         - ts
 
   - repo: https://github.com/crate-ci/typos.git
-    rev: v1.51.1
+    rev: v1.52.0
     hooks:
     - id: typos
       name: Check spelling (typos)
@@ -101,7 +100,6 @@ repos:
           dist/windows/installer-translations/.* |
           src/base/3rdparty/.* |
           src/searchengine/nova3/socks.py |
-          src/webui/www/package-lock\.json |
           src/webui/www/private/scripts/lib/.*
         )$
       exclude_types:
