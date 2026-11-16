@@ -61,6 +61,9 @@ QString Utils::String::fromLocal8Bit(const std::string_view string)
 
 QString Utils::String::wildcardToRegexPattern(const QString &pattern)
 {
+    if (pattern.isEmpty())
+        return {};
+
 #if (QT_VERSION >= QT_VERSION_CHECK(6, 6, 1))
     return QRegularExpression::wildcardToRegularExpression(pattern
             , (QRegularExpression::UnanchoredWildcardConversion | QRegularExpression::NonPathWildcardConversion));

@@ -32,9 +32,11 @@
 
 #include <QtVersionChecks>
 #include <QDateTime>
+#include <QRegularExpression>
 
 #include "base/bittorrent/infohash.h"
 #include "base/bittorrent/torrent.h"
+#include "base/path.h"
 #include "transferlistmodel.h"
 
 namespace
@@ -270,6 +272,7 @@ int TransferListSortModel::compare(const QModelIndex &left, const QModelIndex &r
         return customCompare(leftValue.toInt(), rightValue.toInt());
 
     case TransferListModel::TR_PRIVATE:
+    case TransferListModel::TR_AUTO_TMM:
         return compareAsBool(leftValue, rightValue);
 
     case TransferListModel::TR_PEERS:
@@ -314,8 +317,51 @@ bool TransferListSortModel::lessThan(const QModelIndex &left, const QModelIndex 
 
 bool TransferListSortModel::filterAcceptsRow(const int sourceRow, const QModelIndex &sourceParent) const
 {
-    return matchFilter(sourceRow, sourceParent)
-           && QSortFilterProxyModel::filterAcceptsRow(sourceRow, sourceParent);
+    if (!matchFilter(sourceRow, sourceParent))
+        return false;
+
+    const int filterColumn = filterKeyColumn();
+    if ((filterColumn >= 0) && (filterColumn < TransferListModel::NB_COLUMNS))
+        return QSortFilterProxyModel::filterAcceptsRow(sourceRow, sourceParent);
+
+    const QRegularExpression filter = filterRegularExpression();
+    if (filter.pattern().isEmpty())
+        return true;
+
+    const auto *model = qobject_cast<TransferListModel *>(sourceModel());
+    if (!model)
+        return false;
+
+    if ((filterColumn != -1) && (filterColumn != TransferListModel::NB_COLUMNS))
+        return false;
+
+    const BitTorrent::Torrent *torrent = model->torrentHandle(model->index(sourceRow, 0, sourceParent));
+    if (!torrent)
+        return false;
+
+    if (filterColumn == -1)
+    {
+        static constexpr TransferListModel::Column filterColumns[] = {
+            TransferListModel::TR_NAME,
+            TransferListModel::TR_SAVE_PATH,
+            TransferListModel::TR_INFOHASH_V1,
+            TransferListModel::TR_INFOHASH_V2};
+
+        for (const TransferListModel::Column column : filterColumns)
+        {
+            const QString value = model->index(sourceRow, column, sourceParent).data(filterRole()).toString();
+            if (filter.match(value).hasMatch())
+                return true;
+        }
+    }
+
+    for (const Path &filePath : torrent->filePaths())
+    {
+        if (filter.match(filePath.filename()).hasMatch())
+            return true;
+    }
+
+    return false;
 }
 
 bool TransferListSortModel::matchFilter(const int sourceRow, const QModelIndex &sourceParent) const

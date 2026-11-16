@@ -157,6 +157,7 @@ TransferListWidget::TransferListWidget(IGUIApplication *app, QWidget *parent)
     if (!columnLoaded)
     {
         setColumnHidden(TransferListModel::TR_CREATE_DATE, true);
+        setColumnHidden(TransferListModel::TR_AUTO_TMM, true);
         setColumnHidden(TransferListModel::TR_ADD_DATE, true);
         setColumnHidden(TransferListModel::TR_SEED_DATE, true);
         setColumnHidden(TransferListModel::TR_UPLIMIT, true);
@@ -1382,7 +1383,7 @@ void TransferListWidget::applyAnnounceStatusFilter(const std::optional<BitTorren
     m_sortFilterModel->setAnnounceStatusFilter(announceStatus);
 }
 
-void TransferListWidget::applyFilter(const QString &name, const TransferListModel::Column &type)
+void TransferListWidget::applyFilter(const QString &name, const int type)
 {
     m_sortFilterModel->setFilterKeyColumn(type);
     const QString pattern = (Preferences::instance()->getRegexAsFilteringPatternForTransferList()

@@ -56,6 +56,7 @@ namespace BitTorrent
         bool useAutoTMM = false;
         bool firstLastPiecePriority = false;
         bool hasFinishedStatus = false;
+        bool hasFinishedStorage = false;
         bool stopped = false;
         Torrent::StopCondition stopCondition = Torrent::StopCondition::None;
 

@@ -93,6 +93,7 @@ public:
         TR_REANNOUNCE,
         TR_PRIVATE,
         TR_CREATE_DATE,
+        TR_AUTO_TMM,
 
         NB_COLUMNS
     };

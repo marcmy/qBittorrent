@@ -219,6 +219,8 @@ namespace BitTorrent
         void forceReannounce(int index = -1) override;
         void forceDHTAnnounce() override;
         void forceRecheck() override;
+        void recheckFiles(const QList<int> &indexes
+                , std::function<void(int, int)> progress = {}) override;
         void renameFile(int index, const Path &path) override;
         void prioritizeFiles(const QList<DownloadPriority> &priorities) override;
         void setUploadLimit(int limit) override;
@@ -261,7 +263,7 @@ namespace BitTorrent
         int fileIndexFromNative(lt::file_index_t nativeFileIndex) const;
 
         void handleStateUpdate(const lt::torrent_status &nativeStatus);
-        void handleFastResumeRejected();
+        void handleFastResumeRejected(bool recoverableFileMismatch);
         void handleFileCompleted(lt::file_index_t nativeFileIndex);
         void handleFileError(FileErrorInfo fileError);
         void handleFileRenamed(lt::file_index_t nativeFileIndex, const Path &newActualFilePath, const Path &oldActualFilePath);
@@ -313,6 +315,7 @@ namespace BitTorrent
 
         Path makeActualPath(int index, const Path &path) const;
         Path makeUserPath(const Path &path) const;
+        bool shouldUseDownloadPath() const;
         void adjustStorageLocation();
         void moveStorage(const Path &newPath, MoveStorageContext context);
         void manageActualFilePaths();
@@ -376,7 +379,9 @@ namespace BitTorrent
         TorrentOperatingMode m_operatingMode = TorrentOperatingMode::AutoManaged;
         TorrentContentLayout m_contentLayout = TorrentContentLayout::Original;
         bool m_hasFinishedStatus = false;
+        bool m_hasFinishedStorage = false;
         bool m_hasMissingFiles = false;
+        bool m_missingFilesStateRecovered = false;
         bool m_hasFirstLastPiecePriority = false;
         bool m_useAutoTMM = false;
         bool m_isStopped = false;

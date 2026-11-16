@@ -264,6 +264,7 @@ private:
 
     SettingValue<bool> m_storeExecutionLogEnabled;
     SettingValue<bool> m_storeDownloadTrackerFavicon;
+    SettingValue<int> m_storeTransferListFilterColumn;
     CachedSettingValue<Log::MsgTypes> m_storeExecutionLogTypes;
 
 #if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
