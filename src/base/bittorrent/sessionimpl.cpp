@@ -5873,9 +5873,21 @@ void SessionImpl::handleMoveTorrentStorageJobFinished(const Path &newPath)
         // Last job is completed for torrent that being removing, so actually remove it
         const lt::torrent_handle nativeHandle = finishedJob.torrentHandle;
         const TorrentID torrentID = getInfoHash(nativeHandle).toTorrentID();
-        const RemovingTorrentData &removingTorrentData = m_removingTorrents[torrentID];
-        if (removingTorrentData.removeOption == TorrentRemoveOption::KeepContent)
+        const auto removingTorrentDataIter = m_removingTorrents.find(torrentID);
+        if (removingTorrentDataIter == m_removingTorrents.end())
+            return;
+
+        if (removingTorrentDataIter->removeOption == TorrentRemoveOption::KeepContent)
+        {
             m_nativeSession->remove_torrent(nativeHandle, lt::session::delete_partfile);
+        }
+        else if (!newPath.isEmpty())
+        {
+            // The torrent was removed with its content while this move was running.
+            // libtorrent finishes the move before it stops the torrent, so the content
+            // is now in the new location. Remove it from there, not from the old one.
+            removingTorrentDataIter->contentStoragePath = newPath;
+        }
     }
 }
 
