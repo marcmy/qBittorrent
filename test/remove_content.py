@@ -6,6 +6,9 @@ finishes the move first, so the content must be deleted from the destination.
 
 Case 2: the torrent is removed right after one of its files was renamed, before
 the next periodic status update. The renamed file must still be deleted.
+
+Case 3: qBittorrent is closed right after a torrent is removed, before libtorrent
+confirms the removal. The content must be deleted before the process exits.
 """
 
 import argparse
@@ -150,6 +153,34 @@ def removal_after_rename(executable, root):
         client.close()
 
 
+def removal_before_shutdown(executable, root, move_root, require_race):
+    client = new_client(executable, root)
+    name = "remove-before-shutdown"
+    metainfo = make_torrent(client.final, name, {"large.bin": 1024 * 1024 * 1024, "small.bin": 1000})
+    destination = move_root / "shutdown-destination"
+    try:
+        client.launch()
+        client.add(metainfo, False)
+        # Removing during a move to another drive delays libtorrent's confirmation
+        # by several seconds, so the application is closed before it arrives.
+        client.api("torrents/setLocation", {"hashes": client.hash, "location": str(destination)})
+        remove_with_content(client)
+        client.close()
+        # Check right after the process exits. Nothing deletes the content later.
+        leftover = leftover_files(client.final / name, destination / name)
+        assert not leftover, f"removal before shutdown: content was not removed: {leftover}"
+        during_move = removed_before_move_finished(client, name)
+        print(json.dumps({"case": "removal-before-shutdown", "removed_while_moving": during_move}), flush=True)
+        if require_race and not during_move:
+            raise AssertionError("The move finished before the torrent was removed, so the case was not tested")
+    except Exception:
+        client.close()
+        print_torrent_log(client, name)
+        raise
+    finally:
+        client.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exe", type=Path, required=True)
@@ -166,6 +197,7 @@ def main():
     move_root.mkdir(parents=True, exist_ok=False)
     removal_during_move(executable, root / "move-case", move_root, args.require_race)
     removal_after_rename(executable, root / "rename-case")
+    removal_before_shutdown(executable, root / "shutdown-case", move_root, args.require_race)
     print("PASS: remove content regression", flush=True)
 
 
