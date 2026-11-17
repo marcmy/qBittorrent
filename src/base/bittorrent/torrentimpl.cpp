@@ -2663,6 +2663,17 @@ void TorrentImpl::handleFileRenamed(const lt::file_index_t nativeFileIndex, cons
     const int fileIndex = fileIndexFromNative(nativeFileIndex);
     Q_ASSERT(fileIndex >= 0);
 
+#if LIBTORRENT_VERSION_NUM >= 20100
+    // Keep the cached status in sync with libtorrent right away. Otherwise
+    // actualFilePaths() returns the old name until the next status update, and
+    // removing the torrent with its content in that window misses the file.
+    if (!newActualFilePath.isEmpty())
+    {
+        m_nativeStatus.renamed_files.rename_file(nativeTorrentInfo()->layout()
+                , nativeFileIndex, newActualFilePath.toString().toStdString());
+    }
+#endif
+
     const FileRenameInfo currentFileRenameInfo = m_renamingFiles.dequeue();
     const Path oldFilePath = m_filePaths.at(fileIndex);
     const Path newFilePath = makeUserPath(newActualFilePath);

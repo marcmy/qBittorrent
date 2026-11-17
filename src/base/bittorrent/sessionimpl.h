@@ -54,6 +54,7 @@
 #include "addtorrentparams.h"
 #include "cachestatus.h"
 #include "categoryoptions.h"
+#include "infohash.h"
 #include "session.h"
 #include "sessionstatus.h"
 #include "torrentinfo.h"
@@ -559,6 +560,8 @@ namespace BitTorrent
             Path path;
             MoveStorageMode mode {};
             MoveStorageContext context {};
+            // The handle can no longer report this ID once a removed torrent is freed.
+            TorrentID torrentID;
         };
 
         struct RemovingTorrentData

@@ -298,6 +298,20 @@ jobs:
             throw "Completed storage regression failed with exit code $LASTEXITCODE"
           }
 
+      - name: Test removing torrent content
+        run: |
+          # The move destination is on another drive, so the move is a slow copy
+          # and the torrent can be removed while it is still moving.
+          python -u test/remove_content.py `
+            --exe build/qbittorrent.exe `
+            --root "${{ runner.temp }}/qbittorrent-remove-content-${{ github.run_id }}-${{ github.run_attempt }}" `
+            --move-root "$env:USERPROFILE/qbittorrent-remove-content-move-${{ github.run_id }}-${{ github.run_attempt }}" `
+            --require-race
+          if ($LASTEXITCODE -ne 0)
+          {
+            throw "Remove content regression failed with exit code $LASTEXITCODE"
+          }
+
       - name: Show sccache stats
         if: always()
         continue-on-error: true
