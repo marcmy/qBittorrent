@@ -5815,7 +5815,7 @@ bool SessionImpl::addMoveTorrentStorageJob(TorrentImpl *torrent, const Path &new
         }
     }
 
-    const MoveStorageJob moveStorageJob {torrentHandle, newPath, mode, context};
+    const MoveStorageJob moveStorageJob {torrentHandle, newPath, mode, context, torrent->id()};
     m_moveStorageQueue << moveStorageJob;
     LogMsg(tr("Enqueued torrent move. Torrent: \"%1\". Source: \"%2\". Destination: \"%3\"").arg(torrent->name(), currentLocation.toString(), newPath.toString()));
 
@@ -5872,8 +5872,7 @@ void SessionImpl::handleMoveTorrentStorageJobFinished(const Path &newPath)
     {
         // Last job is completed for torrent that being removing, so actually remove it
         const lt::torrent_handle nativeHandle = finishedJob.torrentHandle;
-        const TorrentID torrentID = getInfoHash(nativeHandle).toTorrentID();
-        const auto removingTorrentDataIter = m_removingTorrents.find(torrentID);
+        const auto removingTorrentDataIter = m_removingTorrents.find(finishedJob.torrentID);
         if (removingTorrentDataIter == m_removingTorrents.end())
             return;
 

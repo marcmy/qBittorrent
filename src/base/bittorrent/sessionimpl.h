@@ -559,6 +559,8 @@ namespace BitTorrent
             Path path;
             MoveStorageMode mode {};
             MoveStorageContext context {};
+            // The handle can no longer report this ID once a removed torrent is freed.
+            TorrentID torrentID;
         };
 
         struct RemovingTorrentData

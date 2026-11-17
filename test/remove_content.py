@@ -54,6 +54,14 @@ def new_client(executable, root, refresh_interval_ms=None):
     return client
 
 
+def print_torrent_log(client, name):
+    log = client.profile / "qBittorrent" / "data" / "logs" / "qbittorrent.log"
+    if log.exists():
+        for line in log.read_text(encoding="utf-8").splitlines():
+            if name in line or "content" in line.lower():
+                print("qBittorrent log:", line, flush=True)
+
+
 def removed_before_move_finished(client, name):
     """Use the log order to tell whether the removal happened during the move."""
     log = (client.profile / "qBittorrent" / "data" / "logs" / "qbittorrent.log").read_text(encoding="utf-8")
@@ -102,6 +110,10 @@ def removal_during_move(executable, root, move_root, require_race):
         print(json.dumps({"case": "removal-during-move", "removed_while_moving": during_move}), flush=True)
         if require_race and not during_move:
             raise AssertionError("The move finished before the torrent was removed, so the case was not tested")
+    except Exception:
+        client.close()
+        print_torrent_log(client, name)
+        raise
     finally:
         client.close()
 
@@ -128,6 +140,10 @@ def removal_after_rename(executable, root):
         remove_with_content(client)
         wait_until_removed("removal after rename", client.final / name, timeout=30)
         print(json.dumps({"case": "removal-after-rename"}), flush=True)
+    except Exception:
+        client.close()
+        print_torrent_log(client, name)
+        raise
     finally:
         client.close()
 
