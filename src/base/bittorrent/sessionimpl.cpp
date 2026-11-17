@@ -782,6 +782,10 @@ SessionImpl::~SessionImpl()
     // After this, (ideally) no more important alerts will be generated/handled
     saveResumeData();
 
+    // Content of removed torrents is deleted on the I/O thread. Wait for the jobs
+    // that are already queued, because stopping the thread would drop them.
+    QMetaObject::invokeMethod(m_torrentContentRemover, [] {}, Qt::BlockingQueuedConnection);
+
     saveStatistics();
 
     // We must delete FilterParserThread
@@ -3399,7 +3403,10 @@ void SessionImpl::saveResumeData()
     QElapsedTimer timer;
     timer.start();
 
-    while ((m_numResumeData > 0) || !m_moveStorageQueue.isEmpty() || m_needSaveTorrentsQueue)
+    // Also wait for torrents that are being removed. Their content (if requested)
+    // is deleted only after libtorrent confirms the removal.
+    while ((m_numResumeData > 0) || !m_moveStorageQueue.isEmpty() || m_needSaveTorrentsQueue
+           || !m_removingTorrents.isEmpty())
     {
         const lt::seconds waitTime {5};
         const lt::seconds expireTime {30};
@@ -3420,6 +3427,7 @@ void SessionImpl::saveResumeData()
             if (const int alertType = alert->type();
                 (alertType == lt::save_resume_data_alert::alert_type) || (alertType == lt::save_resume_data_failed_alert::alert_type)
                 || (alertType == lt::storage_moved_alert::alert_type) || (alertType == lt::storage_moved_failed_alert::alert_type)
+                || (alertType == lt::torrent_deleted_alert::alert_type) || (alertType == lt::torrent_delete_failed_alert::alert_type)
                 || (alertType == lt::state_update_alert::alert_type))
             {
                 hasWantedAlert = true;
