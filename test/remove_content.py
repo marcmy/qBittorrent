@@ -66,8 +66,10 @@ def removed_before_move_finished(client, name):
     """Use the log order to tell whether the removal happened during the move."""
     log = (client.profile / "qBittorrent" / "data" / "logs" / "qbittorrent.log").read_text(encoding="utf-8")
     removed = log.find(f'Torrent removed. Torrent: "{name}"')
-    moved = max(log.find(f'Moved torrent successfully. Torrent: "{name}"'),
-                log.find(f'Failed to move torrent. Torrent: "{name}"'))
+    # Once the torrent is removed, the move messages name it by its hash instead.
+    moved = max(log.find(f'{message}. Torrent: "{label}"')
+                for message in ("Moved torrent successfully", "Failed to move torrent")
+                for label in (name, client.hash))
     assert removed >= 0 and moved >= 0, "The log does not show both the move and the removal"
     return removed < moved
 
