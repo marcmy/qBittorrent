@@ -54,6 +54,7 @@
 #include "addtorrentparams.h"
 #include "cachestatus.h"
 #include "categoryoptions.h"
+#include "infohash.h"
 #include "session.h"
 #include "sessionstatus.h"
 #include "torrentinfo.h"
