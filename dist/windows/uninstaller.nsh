@@ -22,6 +22,7 @@ SectionEnd
 Section "un.$(remove_registry)" ;"un.Remove registry keys"
     SectionIn RO
     ; Remove registry keys
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "qBittorrent"
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\qBittorrent"
     DeleteRegKey HKLM "Software\qBittorrent"
     DeleteRegValue HKLM "Software\RegisteredApplications" "qBittorrent"
@@ -69,14 +70,19 @@ FunctionEnd
 Function un.check_instance
     check:
     FindProcDLL::FindProc "qbittorrent.exe"
-    StrCmp $R0 "1" 0 notfound
-    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION $(uninst_warning) /SD IDCANCEL IDRETRY check IDCANCEL canceled
+    StrCmp $R0 "0" notFound
+    StrCmp $R0 "1" 0 otherError
 
-    canceled:
+    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION $(uninst_warning) /SD IDCANCEL IDRETRY check
     SetErrorLevel 15618 # WinError.h: `ERROR_PACKAGES_IN_USE`
     Abort
 
-    notfound:
+    otherError:
+    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "$(uninst_findproc_other_error) $R0" /SD IDCANCEL IDRETRY check
+    SetErrorLevel 1603 # WinError.h: `ERROR_INSTALL_FAILURE`
+    Abort
+
+    notFound:
 FunctionEnd
 
 Function un.onUninstSuccess

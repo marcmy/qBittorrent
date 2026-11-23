@@ -76,12 +76,12 @@ Section $(inst_startmenu) ;"Create Start Menu Shortcut"
     CreateShortCut "$SMPROGRAMS\qBittorrent\$(inst_uninstall_link_description).lnk" "$INSTDIR\uninst.exe"
 SectionEnd
 
-Section /o $(inst_startup) ;"Start qBittorrent on Windows start up"
+Section /o $(inst_startup) ;"Start qBittorrent on Windows startup"
     !insertmacro UAC_AsUser_Call Function inst_startup_user ${UAC_SYNCREGISTERS}|${UAC_SYNCOUTDIR}|${UAC_SYNCINSTDIR}
 SectionEnd
 
 Function inst_startup_user
-    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "qBittorrent" "$INSTDIR\qbittorrent.exe"
+    WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "qBittorrent" '"$INSTDIR\qbittorrent.exe"'
 FunctionEnd
 
 Section $(inst_firewall)
@@ -139,14 +139,19 @@ FunctionEnd
 Function check_instance
     check:
     FindProcDLL::FindProc "qbittorrent.exe"
-    StrCmp $R0 "1" 0 notfound
-    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION $(inst_warning) /SD IDCANCEL IDRETRY check IDCANCEL canceled
+    StrCmp $R0 "0" notFound
+    StrCmp $R0 "1" 0 otherError
 
-    canceled:
+    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION $(inst_warning) /SD IDCANCEL IDRETRY check
     SetErrorLevel 15618 # WinError.h: `ERROR_PACKAGES_IN_USE`
     Abort
 
-    notfound:
+    otherError:
+    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "$(inst_findproc_other_error) $R0" /SD IDCANCEL IDRETRY check
+    SetErrorLevel 1603 # WinError.h: `ERROR_INSTALL_FAILURE`
+    Abort
+
+    notFound:
 FunctionEnd
 
 Function PageFinishRun
