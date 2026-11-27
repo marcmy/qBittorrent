@@ -89,9 +89,9 @@ private slots:
         QCOMPARE(classify(u"bogus"_s, {}, {}).type, Type::CrossOrigin);
 
         // takes precedence over 'Origin' and 'Referer'
-        const RequestOrigin::Result crossSite = classify(u"cross-site"_s, u"http://qbt.example:8080"_s, u"http://qbt.example:8080/"_s);
-        QCOMPARE(crossSite.type, Type::CrossOrigin);
-        QCOMPARE(crossSite.header, Header::SecFetchSite);
+        const RequestOrigin::Result crossOriginResult = classify(u"cross-site"_s, u"http://qbt.example:8080"_s, u"http://qbt.example:8080/"_s);
+        QCOMPARE(crossOriginResult.type, Type::CrossOrigin);
+        QCOMPARE(crossOriginResult.header, Header::SecFetchSite);
         QCOMPARE(classify(u"same-origin"_s, u"http://evil.example"_s, u"http://evil.example/"_s).type, Type::SameOrigin);
     }
 
