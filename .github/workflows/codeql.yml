@@ -1,0 +1,63 @@
+name: CodeQL Advanced
+
+on:
+  push:
+    branches: [custom/master]
+  pull_request:
+    branches: [custom/master]
+  schedule:
+    - cron: "22 13 * * 6"
+
+# Deny all token capabilities unless a job explicitly grants them.
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+
+    permissions:
+      # Upload CodeQL results to the repository security dashboard.
+      security-events: write
+      # Read repository contents and any private CodeQL packs.
+      contents: read
+      packages: read
+      actions: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            build-mode: none
+          - language: c-cpp
+            # qBittorrent's real build requires Qt, Boost and libtorrent setup.
+            # No-build mode keeps CodeQL independent from the product CI while
+            # still providing supported C/C++ source analysis.
+            build-mode: none
+          - language: javascript-typescript
+            build-mode: none
+          - language: python
+            build-mode: none
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
+        with:
+          category: /language:${{ matrix.language }}

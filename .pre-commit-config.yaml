@@ -46,12 +46,12 @@ repos:
         - svg
         - ts
 
-  - repo: https://github.com/rvben/rumdl-pre-commit.git
-    rev: v0.3.4
+  - repo: https://github.com/igorshubovych/markdownlint-cli.git
+    rev: v0.50.0
     hooks:
-    - id: rumdl
+    - id: markdownlint
       name: Check Markdown files
-      args: ["--config", ".github/workflows/helper/pre-commit/.rumdl.toml", "--fix"]
+      args: ["--config", ".github/workflows/helper/pre-commit/.markdownlint.yaml"]
       exclude: |
         (?x)^(
           doc/.*/qbittorrent\.1\.md |
@@ -69,7 +69,7 @@ repos:
     hooks:
     - id: codespell
       name: Check spelling (codespell)
-      args: ["--ignore-words-list", "additionals,categor,crossSite,curren,fo,indexIn,ist,ket,notin,searchin,sectionin,superseeding,te,ths"]
+      args: ["--ignore-words-list", "additionals,categor,curren,fo,indexIn,ist,ket,notin,searchin,sectionin,superseeding,te,ths"]
       exclude: |
         (?x)^(
           .*\.desktop |
@@ -78,8 +78,8 @@ repos:
           dist/windows/installer-translations/.* |
           src/base/3rdparty/.* |
           src/searchengine/nova3/socks.py |
-          src/webui/www/package-lock\.json |
-          src/webui/www/private/scripts/lib/.*
+          src/webui/www/private/scripts/lib/.* |
+          src/webui/www/package-lock\.json
         )$
       exclude_types:
         - ts
@@ -101,7 +101,6 @@ repos:
           dist/windows/installer-translations/.* |
           src/base/3rdparty/.* |
           src/searchengine/nova3/socks.py |
-          src/webui/www/package-lock\.json |
           src/webui/www/private/scripts/lib/.*
         )$
       exclude_types:
